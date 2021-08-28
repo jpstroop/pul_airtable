@@ -1,6 +1,7 @@
+from airtable import AirTableAPI
 from json import load
 from ldap import LDAP_API
-from airtable import AirTableAPI
+from sys import stderr
 
 def debug_dump(json_payload):
     from json import dumps
@@ -19,6 +20,8 @@ class UpdateApp():
 
     def airtable_patch_data_from_ldap(self, netid, airtable_id):
         ldap_data = self.ldap.query('uid', netid)
+        if ldap_data is None:
+            raise Exception(f'LDAP entry not found for {netid}')
         return {
             'records' : [
                 {
@@ -27,7 +30,7 @@ class UpdateApp():
                         'Name': ldap_data.get('displayName'),
                         'First Name': ldap_data.get('givenName'),
                         'Last Name': ldap_data.get('sn'),
-                        'University ID': int(ldap_data.get('universityid')),
+                        'University ID': ldap_data.get('universityid'),
                         'Email': ldap_data.get('mail'),
                         'University Phone': ldap_data.get('telephoneNumber'),
                         'Address': ldap_data.get('street')
@@ -36,28 +39,19 @@ class UpdateApp():
             ]
         }
 
-
-    # TODO: we want:
-
-
 if __name__ == '__main__':
+
     app = UpdateApp()
-    # get all netids and ids
+
+
     # netids = app.airtable.list_netids()
-
-    # for each, reformat and patch
-    patch_body = app.airtable_patch_data_from_ldap('kl37', 'reciI0wlyLxnEi3GZ')
-    debug_dump(patch_body)
-    app.airtable.patch_record(patch_body)
-
-
-    # app.airtable_patch_data_from_ldap('fkayiwa')
-
-    #
-    # netids = airtable.list_netids()
-    # debug_dump(netids)
-
-
-    # ldap
-    # data = ldap.query('uid', 'kayiwa')
-    # print(dumps(data, ensure_ascii=False, indent=2))
+    # for record in netids['records']:
+    #     id = record['id']
+    #     netid = record['fields']['netid']
+    #     patch_body = app.airtable_patch_data_from_ldap(netid, id)
+    #     try:
+    #         app.airtable.patch_record(patch_body)
+    #     except Exception as e:
+    #         print(f'Error for {netid}')
+    #         print(e.message, file=stderr)
+    #         continue

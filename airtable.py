@@ -22,7 +22,6 @@ class AirTableAPI():
         # TODO paging
         r = get(url, params=params, headers=headers)
         r.raise_for_status()
-        # TODO handle non-200s
         payload = r.json()
         if len(payload['records']) > 100:
             print('The list of netids is greater than 100; time to implement paging', file=stderr)
@@ -35,8 +34,5 @@ class AirTableAPI():
         }
         url = f'{AirTableAPI.API_BASE}{self.app_path}'
         r = patch(url, json=body, headers=headers)
-        print(r.text)
         r.raise_for_status()
-
-        # TODO handle non-200s
         sleep(AirTableAPI.THROTTLE_INTERVAL)
