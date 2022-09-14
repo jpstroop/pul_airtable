@@ -8,10 +8,11 @@ class LDAP_API():
         self.oc = oc
         self.host = host
 
-    def _build_query(self, field, id):
-        filter = f'{field}={id}'
-        if field == 'mail':
-            filter = f'{filter}@princeton.edu'
+    def _build_query(self, val, field='uid'):
+        # fields: universityid, uid (net id), mail
+        filter = f'{field}={val}'
+        # if field == 'mail':
+        #     filter = f'{filter}@princeton.edu'
         return ['ldapsearch', '-h', self.host, '-p', '389', '-x', '-b', self.oc, filter]
 
     @staticmethod
@@ -25,14 +26,14 @@ class LDAP_API():
                     d[k] = tokens[1].strip()
                 else:
                     d[k] = ':'.join(tokens[1:]).strip()
-        if 'uid' not in d:
+        if 'uid' not in d: # shortcut; could lead to errors
             return None
         else:
             return d
 
-    def query(self, field, id):
+    def query(self, field, val):
         # Shell out to ldapsearch and get back a dict of values
-        query = self._build_query(field, id)
+        query = self._build_query(field, val)
         proc = Popen(query, stderr=PIPE, stdout=PIPE)
         stdout, stderr = proc.communicate()
         return LDAP_API._format_response(stdout)
