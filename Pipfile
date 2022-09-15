@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 requests = "*"
 pyairtable = "*"
+bs4 = "*"
 
 [dev-packages]
 
