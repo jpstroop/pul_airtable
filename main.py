@@ -39,6 +39,23 @@ class App():
             self.table.create(data)
             print(f'Added {csv_row.emplid}')
 
+    def sync_with_csv(self, csv_path):
+        # TODO: need to validate sheet
+        # TODO: this needs logging (exceptions, updates, adds)
+
+        with open('csv_path, 'r') as f:
+            src_data = DictReader(f)
+            for r in src_data:
+                csv_row = SrcRow(r)
+                airtable_record = app.get_by_emplid(csv_row.emplid)
+                if airtable_record:
+                    data = { } # TODO: needd to decide what fields should by updated
+                    app.table.update(airtable_record['id'], data)
+                else:
+                    app.add_new_record(csv_row)
+                    sleep(THROTTLE_INTERVAL)
+
+
     @staticmethod
     def get_thumbnail_url(netid):
         try:
@@ -105,20 +122,3 @@ if __name__ == '__main__':
 
     app = App()
     # Load CSV.
-    with open('./Alpha Roster - Job and Personal Data - Point in Time af16125ca.csv', 'r') as f:
-        src_data = list(DictReader(f))
-    for r in src_data:
-        csv_row = SrcRow(r)
-        # If a record already exists
-        airtable_record = app.get_by_emplid(csv_row.emplid)
-        if airtable_record:
-            # update the Department:
-            data = {
-                'Division Code' : csv_row['Dept'],
-                'Division Name' : csv_row['Department Name']
-            }
-            app.table.update(airtable_record['id'], data)
-        #  If it does not:
-        else:
-            app.add_new_record(csv_row)
-            sleep(THROTTLE_INTERVAL)
