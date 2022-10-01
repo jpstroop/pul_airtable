@@ -22,6 +22,10 @@ class SrcRow():
         return self._row['Emplid'].zfill(9)
 
     @property
+    def super_emplid(self):
+        return self._row['Manager/Supervisor Emplid'].zfill(9)
+
+    @property
     def admin_unit(self):
         sal_pln = self._row['Sal Plan Descr']
         if sal_pln.startswith('Library Support'):
@@ -61,7 +65,10 @@ class SrcRow():
     @property
     def last_name(self):
         field_data = self._row['Name']
-        return field_data.split(',')[0].split(' ')[0] # drops Jr, III, etc,
+        last = field_data.split(',')[0]
+        if not last.startswith("Al "): # keep, e.g., "Al Amin"
+            last = last.split(' ')[0] # drops Jr, III, etc,
+        return last
 
     @property
     def time(self):

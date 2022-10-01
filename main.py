@@ -5,10 +5,16 @@ from ldap import LDAP_API
 from pyairtable import Table
 from requests import get
 from sys import stderr
+from sys import stdout
 from src_row import SrcRow
 from time import sleep
 
 THROTTLE_INTERVAL = 0.2
+
+    # TODO:
+    # * update (in #sync_with_csv)
+    # * delete in airtable when not on sheet
+    # * validate report fields pre-flight.
 
 class App():
     def __init__(self):
@@ -42,8 +48,7 @@ class App():
     def sync_with_csv(self, csv_path):
         # TODO: need to validate sheet
         # TODO: this needs logging (exceptions, updates, adds)
-
-        with open('csv_path, 'r') as f:
+        with open(csv_path, 'r') as f:
             src_data = DictReader(f)
             for r in src_data:
                 csv_row = SrcRow(r)
@@ -55,6 +60,34 @@ class App():
                     app.add_new_record(csv_row)
                     sleep(THROTTLE_INTERVAL)
 
+    def update_supervisor_hirearchy(self, csv_path):
+        with open(csv_path, 'r') as f:
+            src_data = DictReader(f)
+            for r in src_data:
+                csv_row = SrcRow(r)
+                try:
+                    employee_at_record = app.get_by_emplid(csv_row.emplid) # TODO: Will error if not found
+                    supervisor_at_record = app.get_by_emplid(csv_row.super_emplid)
+                    updates = [{
+                        "id" : supervisor_at_record['id'],
+                        "fields" : { "Is Supervisor?" : True }
+                    },{
+                        "id" : employee_at_record['id'],
+                        "fields" : {
+                            "Manager/Supervisor" : [ supervisor_at_record['id'] ]
+                        }
+                    }]
+                    self.table.batch_update(updates)
+                    # TODO: could build a big struct at once if we wanted (above), rather than row by row
+                except Exception as e:
+                    print("****Error****", file=stderr)
+                    print('Employee record:', file=stderr)
+                    print_json(employee_at_record, f=stderr)
+                    print('Supervisor record:', file=stderr)
+                    print_json(supervisor_at_record, f=stderr)
+                    print(f"Original Error: {str(e)}", file=stderr)
+                    #TODO likely a missing supervisor. Print name from CSV?
+                sleep(THROTTLE_INTERVAL)
 
     @staticmethod
     def get_thumbnail_url(netid):
@@ -74,18 +107,20 @@ class App():
             print(str(e), file=stderr)
 
     @staticmethod
-    def _map_csv_row_to_airtable_fields(csv_row):
+    def _map_csv_row_to_airtable_fields(csv_row, scrape_photo=False):
+        # TODO: What would a better report have?
+        # * Long Title
+        # * netid
         try:
             data = {}
             data['University ID'] = csv_row.emplid
-            data['Division Code'] = csv_row['Dept']
             data['Division Name'] = csv_row['Department Name']
             data['Admin. Unit'] = csv_row.admin_unit
             data['Search Status'] = 'Hired'
             phone = csv_row.phone
             if phone:
                 data['University Phone'] = phone
-            data['Term'] = csv_row.term_end
+            data['End Date'] = csv_row.term_end # TODO set 'Term/Perm/CA' based on this + Sal Plan
             data['Title'] = csv_row['Position - Job Title']
             data['Email'] = csv_row['E-Mail']
             data['Preferred Name'] = csv_row.preferred_name
@@ -99,26 +134,24 @@ class App():
             data['Address'] = csv_row['Telephone DB Office Location']
             netid = app.netid_from_ldap(csv_row.emplid)
             data['netid'] = netid
-            thumbnail = App.get_thumbnail_url(netid)
-            if thumbnail:
-                data['Headshot'] = [ {'url': thumbnail} ]
+            if scrape_photo:
+                thumbnail = App.get_thumbnail_url(netid)
+                if thumbnail:
+                    data['Headshot'] = [ {'url': thumbnail} ]
             return data
         except Exception as e:
             print(f'Error with emplid {csv_row.emplid}', file=stderr)
             raise e
 
-    # TODO: be able to hand this a report and have it decide what fields to
-    # update, records to add, and report when an employee is no longer on in the
-    # report but still in airtable. Should also be able to validate the report
-    # in case the fields have changed
 
-def print_json(json_payload):
+
+def print_json(json_payload, f=stdout):
+    # For debugging
     from json import dumps
-    print(dumps(json_payload, ensure_ascii=False, indent=2))
-
-# TODO: a second pass, linking supervisors via emplid, and marking "is supervisor"
+    print(dumps(json_payload, ensure_ascii=False, indent=2), file=f)
 
 if __name__ == '__main__':
 
     app = App()
-    # Load CSV.
+    report = './Alpha Roster - Job and Personal Data - Point in Time af16125ca.csv'
+    app.update_supervisor_hirearchy(report)
