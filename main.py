@@ -11,39 +11,15 @@ from time import sleep
 
 THROTTLE_INTERVAL = 0.2
 
-    # TODO:
-    # * update (in #sync_with_csv)
-    # * delete in airtable when not on sheet
-    # * validate report fields pre-flight.
-
 class App():
     def __init__(self):
         private = App._load_private()
         self.table = Table(private["API_KEY"], private["BASE_ID"], private["TABLE_NAME"])
         self._ldap = LDAP_API(private["LDAP_HOST"], private["LDAP_OC"])
 
-    @staticmethod
-    def _load_private(pth='./private.json'):
-        with open(pth, 'r') as f:
-            return load(f)
-
     def get_by_emplid(self, emplid):
         'Returns the Airtable record for the given employee ID'
         return self.table.first(formula=f'{{University ID}} = "{emplid}"')
-
-    def netid_from_ldap(self, employee_id):
-        return self._ldap.query(employee_id, 'universityid')['uid']
-
-    def add_new_record(self, csv_row):
-        csv_row = SrcRow(r)
-        airtable_record = app.get_by_emplid(csv_row.emplid)
-        if airtable_record:
-            name = airtable_record['Preferred Name']
-            raise Exception(f'A record already exists for {emplid} ({name})')
-        else:
-            data = App._map_csv_row_to_airtable_fields(csv_row)
-            self.table.create(data)
-            print(f'Added {csv_row.emplid}')
 
     def sync_with_csv(self, csv_path):
         # TODO: need to validate sheet
@@ -57,7 +33,7 @@ class App():
                     data = { } # TODO: needd to decide what fields should by updated
                     app.table.update(airtable_record['id'], data)
                 else:
-                    app.add_new_record(csv_row)
+                    app._add_new_record(csv_row)
                     sleep(THROTTLE_INTERVAL)
 
     def update_supervisor_hirearchy(self, csv_path):
@@ -89,8 +65,27 @@ class App():
                     #TODO likely a missing supervisor. Print name from CSV?
                 sleep(THROTTLE_INTERVAL)
 
+    def _netid_from_ldap(self, employee_id):
+        return self._ldap.query(employee_id, 'universityid')['uid']
+
+    def _add_new_record(self, csv_row):
+        csv_row = SrcRow(r)
+        airtable_record = app.get_by_emplid(csv_row.emplid)
+        if airtable_record:
+            name = airtable_record['Preferred Name']
+            raise Exception(f'A record already exists for {emplid} ({name})')
+        else:
+            data = App._map_csv_row_to_airtable_fields(csv_row)
+            self.table.create(data)
+            print(f'Added {csv_row.emplid}')
+
     @staticmethod
-    def get_thumbnail_url(netid):
+    def _load_private(pth='./private.json'):
+        with open(pth, 'r') as f:
+            return load(f)
+
+    @staticmethod
+    def _get_thumbnail_url(netid):
         try:
             page_url = f'https://library.princeton.edu/staff/{netid}'
             response = get(page_url)
@@ -132,18 +127,16 @@ class App():
             data['Sal. Plan'] = csv_row['Sal Plan']
             data['Position Number'] = csv_row.position_number
             data['Address'] = csv_row['Telephone DB Office Location']
-            netid = app.netid_from_ldap(csv_row.emplid)
+            netid = app._netid_from_ldap(csv_row.emplid)
             data['netid'] = netid
             if scrape_photo:
-                thumbnail = App.get_thumbnail_url(netid)
+                thumbnail = App._get_thumbnail_url(netid)
                 if thumbnail:
                     data['Headshot'] = [ {'url': thumbnail} ]
             return data
         except Exception as e:
             print(f'Error with emplid {csv_row.emplid}', file=stderr)
             raise e
-
-
 
 def print_json(json_payload, f=stdout):
     # For debugging
