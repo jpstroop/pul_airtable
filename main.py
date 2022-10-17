@@ -83,8 +83,8 @@ class App():
 
     @staticmethod
     def _load_src_data(src_data_path):
-        with open(src_data_path, 'rb') as f:
-            self._src_data = list(DictReader(f, dialect='excel'))
+        with open(src_data_path, 'r', encoding='utf-16') as f:
+            return list(DictReader(f, delimiter='\t'))
 
     @staticmethod
     def _get_thumbnail_url(netid):
@@ -149,9 +149,8 @@ def print_json(json_payload, f=stdout):
 
 if __name__ == '__main__':
 
-    # Choose "Run Excel data!"
-    report = './Alpha Roster - Job and Personal Data - Point in Time acd90f65b.xlsx'
+    report = './Alpha Roster - Job and Personal Data - Point in Time a4e1f759a.csv'
     app = App(report)
     for row in app._src_data:
-        print(row)
+        print_json(row)
     # app.update_supervisor_hirearchy(report)
