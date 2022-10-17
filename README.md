@@ -8,7 +8,7 @@ Create a file called `private.json` as a sibling to `main.py` and populate it as
 {
   "API_KEY": "",
   "BASE_ID": "",
-  "TABLE_NAME": "",
+  "TABLE_ID": "",
   "LDAP_HOST": "",
   "LDAP_OC": ""
 }

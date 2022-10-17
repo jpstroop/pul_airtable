@@ -14,20 +14,20 @@ THROTTLE_INTERVAL = 0.2
 class App():
     def __init__(self, src_data_path):
         private = App._load_private()
-        self.table = Table(private["API_KEY"], private["BASE_ID"], private["TABLE_NAME"])
+        self.table = Table(private["API_KEY"], private["BASE_ID"], private["TABLE_ID"])
         self._ldap = LDAP_API(private["LDAP_HOST"], private["LDAP_OC"])
         self._src_data = App._load_src_data(src_data_path)
 
-    def get_by_emplid(self, emplid):
+    def get_airtable_record_by_emplid(self, emplid):
         'Returns the Airtable record for the given employee ID'
         return self.table.first(formula=f'{{University ID}} = "{emplid}"')
 
-    def sync_with_csv(self, csv_path):
+    def sync_airtable_with_report(self):
         # TODO: need to validate sheet
         # TODO: this needs logging (exceptions, updates, adds)
         for r in self._src_data:
             csv_row = SrcRow(r)
-            airtable_record = app.get_by_emplid(csv_row.emplid)
+            airtable_record = app.get_airtable_record_by_emplid(csv_row.emplid)
             if airtable_record:
                 data = { } # TODO: needd to decide what fields should by updated
                 app.table.update(airtable_record['id'], data)
@@ -39,8 +39,8 @@ class App():
         for r in self._src_data:
             csv_row = SrcRow(r)
             try:
-                employee_at_record = app.get_by_emplid(csv_row.emplid) # TODO: Will error if not found
-                supervisor_at_record = app.get_by_emplid(csv_row.super_emplid)
+                employee_at_record = app.get_airtable_record_by_emplid(csv_row.emplid) # TODO: Will error if not found
+                supervisor_at_record = app.get_airtable_record_by_emplid(csv_row.super_emplid)
                 updates = [{
                     "id" : supervisor_at_record['id'],
                     "fields" : { "Is Supervisor?" : True }
@@ -62,19 +62,48 @@ class App():
                 #TODO likely a missing supervisor. Print name from CSV?
             sleep(THROTTLE_INTERVAL)
 
+
+    def check_all_eplids_from_report_in_airtable(self):
+        airtable_emplids = self._all_emplids_from_airtable()
+        report_emplids = self._all_emplids_from_report()
+        missing_from_airtable = [i for i in report_emplids if i not in airtable_emplids]
+        for emplid in missing_from_airtable:
+            name = self._get_record_from_report_by_emplid(emplid)["Name"]
+            print(f'Employee {emplid} ({name}) is missing from Airtable')
+        
+    def check_all_eplids_from_airtable_in_report(self):
+        airtable_emplids = self._all_emplids_from_airtable()
+        report_emplids = self._all_emplids_from_report()
+        missing_from_report = [i for i in airtable_emplids if i not in report_emplids]
+        for emplid in missing_from_report:
+            name = self.get_airtable_record_by_emplid(emplid)['fields'].get('Preferred Name')
+            print(f'Employee {emplid} ({name}) is missing from CSV Report')
+
+    def _get_record_from_report_by_emplid(self, emplid):
+        for row in self._src_data:
+            if row['Emplid'] == emplid:
+                return row
+
+    def _all_emplids_from_airtable(self):
+        ids = self.table.all(fields=('University ID'))
+        return [i['fields']['University ID'] for i in ids if i['fields'].get('University ID')]
+
+    def _all_emplids_from_report(self):
+        return [row['Emplid'] for row in self._src_data]
+
     def _netid_from_ldap(self, employee_id):
         return self._ldap.query(employee_id, 'universityid')['uid']
 
     def _add_new_record(self, csv_row):
         csv_row = SrcRow(r)
-        airtable_record = app.get_by_emplid(csv_row.emplid)
+        airtable_record = self.get_airtable_record_by_emplid(csv_row.emplid)
         if airtable_record:
             name = airtable_record['Preferred Name']
             raise Exception(f'A record already exists for {emplid} ({name})')
         else:
             data = App._map_csv_row_to_airtable_fields(csv_row)
             self.table.create(data)
-            print(f'Added {csv_row.emplid}')
+            print(f'Added {csv_row.emplid} ({csv_row["Name"]})')
 
     @staticmethod
     def _load_private(pth='./private.json'):
@@ -83,7 +112,7 @@ class App():
 
     @staticmethod
     def _load_src_data(src_data_path):
-        with open(src_data_path, 'r', encoding='utf-16') as f:
+        with open(src_data_path, 'r', encoding='utf-16') as f: # Note encoding
             return list(DictReader(f, delimiter='\t'))
 
     @staticmethod
@@ -151,6 +180,7 @@ if __name__ == '__main__':
 
     report = './Alpha Roster - Job and Personal Data - Point in Time a4e1f759a.csv'
     app = App(report)
-    for row in app._src_data:
-        print_json(row)
-    # app.update_supervisor_hirearchy(report)
+    # app.check_all_eplids_from_report_in_airtable() # prints warnings
+    #app.check_all_eplids_from_airtable_in_report() # prints warnings
+    # app.sync_airtable_with_report()
+    # app.update_supervisor_hirearchy()

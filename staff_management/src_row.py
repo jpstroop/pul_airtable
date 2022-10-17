@@ -59,6 +59,8 @@ class SrcRow():
         sal_plan = self._row["Sal Plan"]
         if end and sal_plan == "LR":
             return "CA Track"
+        elif self._row["Staff"] == "Casual Hourly":
+            return "Casual Hourly"
         elif not end:
             return "Permanent"
         else:
