@@ -54,6 +54,18 @@ class SrcRow():
             return SrcRow.parse_date(field_data)
 
     @property
+    def term_perm(self):
+        end = self._row["Estimated Appt End Date"]
+        sal_plan = self._row["Sal Plan"]
+        if end and sal_plan == "LR":
+            return "CA Track"
+        elif not end:
+            return "Permanent"
+        else:
+            return "Term"
+    
+
+    @property
     def preferred_name(self):
         return f'{self.first_name} {self.last_name}'
 
