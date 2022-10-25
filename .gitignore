@@ -4,6 +4,7 @@ private.json
 *.csv
 .DS_Store
 *.xlsx
+problems.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
