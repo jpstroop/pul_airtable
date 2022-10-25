@@ -26,7 +26,7 @@ class SrcRow():
         return self._row['Manager/Supervisor Emplid'].zfill(9)
 
     @property
-    def admin_unit(self):
+    def admin_group(self):
         sal_pln = self._row['Sal Plan Descr']
         if sal_pln.startswith('Library Support'):
             return 'HR: PULA'
@@ -39,8 +39,9 @@ class SrcRow():
 
     @property
     def phone(self):
-        if self._row['OL1 Phone - Phone Number']:
-            local = self._row['OL1 Phone - Phone Number'].split('/')[1]
+        data = self._row['OL1 Phone - Phone Number'].strip()
+        if data:
+            local = data.split('/')[1]
             return f"(609) {local}"
         else:
             return None
@@ -48,9 +49,7 @@ class SrcRow():
     @property
     def term_end(self):
         field_data = self._row["Estimated Appt End Date"]
-        if not field_data:
-            return "[N/A - Permanent]"
-        else:
+        if field_data:
             return SrcRow.parse_date(field_data)
 
     @property
@@ -65,7 +64,6 @@ class SrcRow():
             return "Permanent"
         else:
             return "Term"
-    
 
     @property
     def preferred_name(self):
@@ -94,8 +92,10 @@ class SrcRow():
 
     @property
     def position_number(self):
-        if self._row['Position Number']:
+        if self._row['Position Number'].strip():
             return self._row['Position Number']
+        elif self.term_perm == "Casual Hourly":
+            return "[N/A - Casual]"
         else:
             return '[N/A - DoF]'
 
