@@ -14,6 +14,7 @@ THROTTLE_INTERVAL = 0.2
 
 class App():
     VACANT_IMAGE = 'https://dl.airtable.com/.attachments/d5340fc21c451f1733d6ebfff1c79d70/897912fb/Vacant.png'
+    NO_PHOTO_IMAGE = 'https://dl.airtable.com/.attachmentThumbnails/6285b261926b8d097fe02a5639817553/e08f234a.png'
     def __init__(self, src_data_path):
         private = App._load_private()
         self.table = Table(private["API_KEY"], private["BASE_ID"], private["TABLE_ID"])
@@ -22,17 +23,17 @@ class App():
         self._next_vacancy_number = None
 
     def get_airtable_record_by_emplid(self, emplid):
-        'Returns the Airtable record for the given employee ID'
         return self.table.first(formula=f'{{University ID}} = "{emplid}"')
 
-    def sync_airtable_with_report(self):
-        # TODO: need to validate sheet
-        # TODO: this needs logging (exceptions, updates, adds)
+    def get_airtable_record_by_position_no(self, pn):
+        return self.table.first(formula=f'{{Position Number}} = "{pn}"')
+
+    def sync_airtable_with_report(self, scrape_photo=False):
         for r in self._src_data:
             csv_row = SrcRow(r)
             airtable_record = app.get_airtable_record_by_emplid(csv_row.emplid)
             if airtable_record:
-                data = App._map_csv_row_to_airtable_fields(csv_row, update=True)
+                data = App._map_csv_row_to_airtable_fields(csv_row, update=True, scrape_photo=scrape_photo)
                 app.table.update(airtable_record['id'], data)
             else:
                 app._add_new_record(csv_row)
@@ -66,15 +67,15 @@ class App():
             sleep(THROTTLE_INTERVAL)
 
 
-    def check_all_eplids_from_report_in_airtable(self):
+    def check_all_emplids_from_report_in_airtable(self):
         airtable_emplids = self._all_emplids_from_airtable()
         report_emplids = self._all_emplids_from_report()
         missing_from_airtable = [i for i in report_emplids if i not in airtable_emplids]
         for emplid in missing_from_airtable:
-            name = self._get_record_from_report_by_emplid(emplid)["Name"]
+            name = self.get_record_from_report_by_emplid(emplid)["Name"]
             print(f'Employee {emplid} ({name}) is missing from Airtable; #sync_airtable_with_report() will add them.')
         
-    def check_all_eplids_from_airtable_in_report(self):
+    def check_all_emplids_from_airtable_in_report(self):
         airtable_emplids = self._all_emplids_from_airtable()
         report_emplids = self._all_emplids_from_report()
         missing_from_report = [i for i in airtable_emplids if i not in report_emplids]
@@ -82,6 +83,23 @@ class App():
             name = self.get_airtable_record_by_emplid(emplid)['fields'].get('Preferred Name')
             if name != "Anne Jarvis":
                 print(f'Employee {emplid} ({name}) is missing from CSV Report; #employee_to_vacancy(emplid) will remove them.')
+
+    def check_all_position_numbers_from_report_in_airtable(self):
+        airtable_pns = self._all_position_numbers_from_airtable()
+        report_pns = self._all_position_numbers_from_report()
+        missing_from_airtable = [pn for pn in report_pns if pn not in airtable_pns]
+        for pn in missing_from_airtable:
+            name = self.get_record_from_report_by_position_no(pn)["Name"]
+            print(f'Position Number {pn} ({name}) is missing from CSV Report.')
+
+    def check_all_position_numbers_from_airtable_in_report(self):
+        airtable_pns = self._all_position_numbers_from_airtable()
+        report_pns = self._all_position_numbers_from_report()
+        missing_from_report = [pn for pn in airtable_pns if pn not in report_pns]
+        for pn in missing_from_report:
+            name = self.get_airtable_record_by_position_no(pn)['fields'].get('Preferred Name')
+            if not name.startswith('__VACANCY'):
+                print(f'Position Number {pn} ({name}) is missing from CSV Report.')
 
     def employee_to_vacancy(self, emplid):
         airtable_record = self.get_airtable_record_by_emplid(emplid)
@@ -113,9 +131,14 @@ class App():
             self._next_vacancy_number+=1
         return f'__VACANCY_{str(self._next_vacancy_number).zfill(3)}__'
 
-    def _get_record_from_report_by_emplid(self, emplid):
+    def get_record_from_report_by_emplid(self, emplid):
         for row in self._src_data:
             if row['Emplid'] == emplid:
+                return row
+
+    def get_record_from_report_by_position_no(self, pn):
+        for row in self._src_data:
+            if row['Position Number'] == pn:
                 return row
 
     def _all_emplids_from_airtable(self):
@@ -124,6 +147,17 @@ class App():
 
     def _all_emplids_from_report(self):
         return [row['Emplid'] for row in self._src_data]
+
+    def _all_position_numbers_from_airtable(self):
+        nos = self.table.all(fields=('Position Number'))
+        filt = lambda pn: not pn.startswith('[') and pn != ""
+        return list(filter(filt, [n['fields'].get('Position Number', "") for n in nos]))
+
+    def _all_vacancy_position_numbers_from_airtable(self):
+        pass
+
+    def _all_position_numbers_from_report(self):
+        return [row['Position Number'] for row in self._src_data if row['Position Number'].strip()]
 
     def _netid_from_ldap(self, employee_id):
         return self._ldap.query(employee_id, 'universityid')['uid']
@@ -202,6 +236,8 @@ class App():
                 thumbnail = App._get_thumbnail_url(netid)
                 if thumbnail:
                     data['Headshot'] = [ {'url': thumbnail} ]
+                else:
+                    data['Headshot'] = [ {'url': App.NO_PHOTO_IMAGE} ]
             return data
         except Exception as e:
             print(f'Error with emplid {csv_row.emplid}', file=stderr)
@@ -218,9 +254,15 @@ if __name__ == '__main__':
     # TODO: make Report an object with many Source Rows
     # TODO: make Airtable an object
     app = App(report)
-    # app.check_all_eplids_from_report_in_airtable() # prints warnings
-    # app.check_all_eplids_from_airtable_in_report() # prints warnings
-    app.employee_to_vacancy('940007715')
-    # TODO: Check position numbers?
-    # app.sync_airtable_with_report()
-    # app.update_supervisor_hierarchy()
+    # TODO: when complete wrap these four in one "run_checks()" method
+    # app.check_all_emplids_from_report_in_airtable() # prints warnings
+    # app.check_all_emplids_from_airtable_in_report() # prints warnings
+    # app.check_all_position_numbers_from_report_in_airtable() # prints warnings
+    # app.check_all_position_numbers_from_airtable_in_report() # prints warnings
+    # TODO: check all position numbers are unique in airtable
+    # TODO: Log adds and updates.
+
+    # app.employee_to_vacancy('940007715') # updates and prints warnings
+    
+    # app.sync_airtable_with_report(scrape_photo=False) # updates
+    app.update_supervisor_hierarchy() # updates and prints warnings
