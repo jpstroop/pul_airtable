@@ -1,12 +1,22 @@
 from subprocess import PIPE
 from subprocess import Popen
 
-class LDAP_API():
+class LDAP():
     '''Does what we need and no more. Not an LDAP API.
     '''
     def __init__(self, host, oc):
         self.oc = oc
         self.host = host
+
+    def netid(self, employee_id):
+        return self._query(employee_id, 'universityid')['uid']
+
+    def _query(self, field, val):
+        # Shell out to ldapsearch and get back a dict of values
+        query = self._build_query(field, val)
+        proc = Popen(query, stderr=PIPE, stdout=PIPE)
+        stdout, stderr = proc.communicate()
+        return LDAP_API._format_response(stdout)
 
     def _build_query(self, val, field='uid'):
         # fields: universityid, uid (net id), mail
@@ -30,10 +40,3 @@ class LDAP_API():
             return None
         else:
             return d
-
-    def query(self, field, val):
-        # Shell out to ldapsearch and get back a dict of values
-        query = self._build_query(field, val)
-        proc = Popen(query, stderr=PIPE, stdout=PIPE)
-        stdout, stderr = proc.communicate()
-        return LDAP_API._format_response(stdout)
