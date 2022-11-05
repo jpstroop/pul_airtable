@@ -1,13 +1,23 @@
 from datetime import date
 
-class SrcRow():
+class ReportRow():
     '''A row from the Alpha Roster - Job and Personal Data - Point in Time Report
     '''
     def __init__(self, row):
-        self._row = row
+        self._row = {}
+        for k,v in row.items():
+            # We do this so that empty fields raise KeyError or can use get()
+            # properly. The TSV parser leaves whitespace in otherwise empty
+            # fields
+            v = v.strip()
+            if v != "":
+                self._row[k] = v
 
     def __getitem__(self, key):
         return self._row[key]
+
+    def get(self, key, default=None):
+        return self._row.get(key, default)
 
     @staticmethod
     def parse_date(s):
@@ -103,5 +113,5 @@ class SrcRow():
     def grade(self):
         grade = self._row['Grade']
         if self._row['Sal Plan'] in ('ADM', 'AIT', 'BLB'):
-            grade = f'0{grade}'
+            grade = int(grade)
         return grade

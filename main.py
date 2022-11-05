@@ -1,11 +1,9 @@
 from bs4 import BeautifulSoup
-from csv import DictReader
 from json import load
-from pyairtable import Table
-from re import sub
 from requests import get
-from staff_management.ldap import LDAP_API
-from staff_management.src_row import SrcRow
+from staff_management.ldap import LDAP
+from staff_management.staff_airtable import StaffAirtable
+from staff_management.staff_report import StaffReport
 from sys import stderr
 from sys import stdout
 from time import sleep
@@ -13,175 +11,72 @@ from time import sleep
 THROTTLE_INTERVAL = 0.2
 
 class App():
-    VACANT_IMAGE = 'https://dl.airtable.com/.attachments/d5340fc21c451f1733d6ebfff1c79d70/897912fb/Vacant.png'
-    NO_PHOTO_IMAGE = 'https://dl.airtable.com/.attachmentThumbnails/6285b261926b8d097fe02a5639817553/e08f234a.png'
     def __init__(self, src_data_path):
-        private = App._load_private()
-        self.table = Table(private["API_KEY"], private["BASE_ID"], private["TABLE_ID"])
-        self._ldap = LDAP_API(private["LDAP_HOST"], private["LDAP_OC"])
-        self._src_data = App._load_src_data(src_data_path)
-        self._next_vacancy_number = None
-
-    def get_airtable_record_by_emplid(self, emplid):
-        return self.table.first(formula=f'{{University ID}} = "{emplid}"')
-
-    def get_airtable_record_by_position_no(self, pn):
-        return self.table.first(formula=f'{{Position Number}} = "{pn}"')
-
+        conf = App._load_private()
+        self._airtable = StaffAirtable(conf["API_KEY"], conf["BASE_ID"], conf["TABLE_ID"])
+        self._staff_report = StaffReport(src_data_path)
+        self._ldap = LDAP(conf["LDAP_HOST"], conf["LDAP_OC"])
+        
     def sync_airtable_with_report(self, scrape_photo=False):
-        for r in self._src_data:
-            csv_row = SrcRow(r)
-            airtable_record = app.get_airtable_record_by_emplid(csv_row.emplid)
+        for r in self._staff_report.rows:
+            airtable_record = self._airtable.get_record_by_emplid(report_row.emplid)
             if airtable_record:
-                data = App._map_csv_row_to_airtable_fields(csv_row, update=True, scrape_photo=scrape_photo)
-                app.table.update(airtable_record['id'], data)
+                data = App._map_report_row_to_airtable_fields(report_row, update=True, scrape_photo=scrape_photo)
+                self._airtable.update_record(airtable_record['id'], data)
             else:
-                app._add_new_record(csv_row)
+                self._airtable.add_new_record(report_row)
                 sleep(THROTTLE_INTERVAL)
 
-    def update_supervisor_hierarchy(self):
-        for r in self._src_data:
-            csv_row = SrcRow(r)
-            try:
-                employee_at_record = app.get_airtable_record_by_emplid(csv_row.emplid) # TODO: Will error if not found
-                supervisor_at_record = app.get_airtable_record_by_emplid(csv_row.super_emplid)
-                updates = [{
-                    "id" : supervisor_at_record['id'],
-                    "fields" : { "Is Supervisor?" : True }
-                },{
-                    "id" : employee_at_record['id'],
-                    "fields" : {
-                        "Manager/Supervisor" : [ supervisor_at_record['id'] ]
-                    }
-                }]
-                self.table.batch_update(updates)
-                # TODO: could build a big struct at once if we wanted (above), rather than row by row
-            except Exception as e:
-                print("****Error****", file=stderr)
-                print('Employee record:', file=stderr)
-                print_json(employee_at_record, f=stderr)
-                print('Supervisor record:', file=stderr)
-                print_json(supervisor_at_record, f=stderr)
-                print(f"Original Error: {str(e)}", file=stderr)
-                #TODO likely a missing supervisor. Print name from CSV?
-            sleep(THROTTLE_INTERVAL)
+    def update_supervisor_hierarchy(self): 
+        return self._airtable.update_supervisor_hierarchy(self, self._staff_report)
 
+    def employee_to_vacancy(self, emplid):
+        return self._airtable.employee_to_vacancy(emplid)
 
     def check_all_emplids_from_report_in_airtable(self):
-        airtable_emplids = self._all_emplids_from_airtable()
-        report_emplids = self._all_emplids_from_report()
+        airtable_emplids = self._airtable.all_emplids
+        report_emplids = self._staff_report.all_emplids
         missing_from_airtable = [i for i in report_emplids if i not in airtable_emplids]
         for emplid in missing_from_airtable:
-            name = self.get_record_from_report_by_emplid(emplid)["Name"]
+            name = self._staff_report.get_record_by_emplid(emplid)["Name"]
             print(f'Employee {emplid} ({name}) is missing from Airtable; #sync_airtable_with_report() will add them.')
         
     def check_all_emplids_from_airtable_in_report(self):
-        airtable_emplids = self._all_emplids_from_airtable()
-        report_emplids = self._all_emplids_from_report()
+        airtable_emplids = self._airtable.all_emplids
+        report_emplids = self._staff_report.all_emplids
         missing_from_report = [i for i in airtable_emplids if i not in report_emplids]
         for emplid in missing_from_report:
-            name = self.get_airtable_record_by_emplid(emplid)['fields'].get('Preferred Name')
+            name = self._airtable.get_record_by_emplid(emplid)['fields'].get('Preferred Name')
             if name != "Anne Jarvis":
                 print(f'Employee {emplid} ({name}) is missing from CSV Report; #employee_to_vacancy(emplid) will remove them.')
 
     def check_all_position_numbers_from_report_in_airtable(self):
-        airtable_pns = self._all_position_numbers_from_airtable()
-        report_pns = self._all_position_numbers_from_report()
+        airtable_pns = self._airtable.all_position_numbers
+        report_pns = self._staff_report.all_position_numbers
         missing_from_airtable = [pn for pn in report_pns if pn not in airtable_pns]
         for pn in missing_from_airtable:
-            name = self.get_record_from_report_by_position_no(pn)["Name"]
+            name = self._staff_report.get_record_by_position_no(pn)["Name"]
             print(f'Position Number {pn} ({name}) is missing from CSV Report.')
 
     def check_all_position_numbers_from_airtable_in_report(self):
-        airtable_pns = self._all_position_numbers_from_airtable()
-        report_pns = self._all_position_numbers_from_report()
+        airtable_pns = self._airtable.all_position_numbers
+        report_pns = self._staff_report.all_position_numbers
         missing_from_report = [pn for pn in airtable_pns if pn not in report_pns]
         for pn in missing_from_report:
-            name = self.get_airtable_record_by_position_no(pn)['fields'].get('Preferred Name')
+            name = self._airtable.get_record_by_position_no(pn)['fields'].get('Preferred Name')
             if not name.startswith('__VACANCY'):
                 print(f'Position Number {pn} ({name}) is missing from CSV Report.')
 
-    def employee_to_vacancy(self, emplid):
-        airtable_record = self.get_airtable_record_by_emplid(emplid)
-        data =  {
-            "Address": None,
-            "Email": None,
-            "First Name": None,
-            "Headshot": [ {'url': App.VACANT_IMAGE} ],
-            "Last Name": None,
-            "Last Occupant": airtable_record["fields"]["Preferred Name"],
-            "netid": None,
-            "Preferred Name": app.next_vacancy,
-            "Search Status": "Recently Vacated",
-            "Start Date": None,
-            "University ID": None,
-            "University Phone": None
-        }
-        app.table.update(airtable_record['id'], data)
-        print(f'Created {data["Preferred Name"]} (was {airtable_record["Preferred Name"]})')
-
-    @property
-    def next_vacancy(self):
-        if not self._next_vacancy_number:
-            formula = "REGEX_MATCH({Preferred Name}, '^__VACANCY')"
-            records = self.table.all(formula=formula, sort=["Preferred Name"])
-            last = sub(r"[^\d]", "", records[-1]["fields"]["Preferred Name"])
-            self._next_vacancy_number = int(last)+1
-        else:
-            self._next_vacancy_number+=1
-        return f'__VACANCY_{str(self._next_vacancy_number).zfill(3)}__'
-
-    def get_record_from_report_by_emplid(self, emplid):
-        for row in self._src_data:
-            if row['Emplid'] == emplid:
-                return row
-
-    def get_record_from_report_by_position_no(self, pn):
-        for row in self._src_data:
-            if row['Position Number'] == pn:
-                return row
-
-    def _all_emplids_from_airtable(self):
-        ids = self.table.all(fields=('University ID'))
-        return [i['fields']['University ID'] for i in ids if i['fields'].get('University ID')]
-
-    def _all_emplids_from_report(self):
-        return [row['Emplid'] for row in self._src_data]
-
-    def _all_position_numbers_from_airtable(self):
-        nos = self.table.all(fields=('Position Number'))
-        filt = lambda pn: not pn.startswith('[') and pn != ""
-        return list(filter(filt, [n['fields'].get('Position Number', "") for n in nos]))
-
-    def _all_vacancy_position_numbers_from_airtable(self):
-        pass
-
-    def _all_position_numbers_from_report(self):
-        return [row['Position Number'] for row in self._src_data if row['Position Number'].strip()]
-
-    def _netid_from_ldap(self, employee_id):
-        return self._ldap.query(employee_id, 'universityid')['uid']
-
-    def _add_new_record(self, csv_row):
-        csv_row = SrcRow(csv_row)
-        airtable_record = self.get_airtable_record_by_emplid(csv_row.emplid)
-        if airtable_record:
-            name = airtable_record['Preferred Name']
-            raise Exception(f'A record already exists for {emplid} ({name})')
-        else:
-            data = App._map_csv_row_to_airtable_fields(csv_row)
-            self.table.create(data)
-            print(f'Added {csv_row.emplid} ({csv_row["Name"]})')
+    def run_checks(self):
+        self.check_all_emplids_from_report_in_airtable() # prints warnings
+        self.check_all_emplids_from_airtable_in_report() # prints warnings
+        self.check_all_position_numbers_from_report_in_airtable() # prints warnings
+        self.check_all_position_numbers_from_airtable_in_report() # prints warnings
 
     @staticmethod
     def _load_private(pth='./private.json'):
         with open(pth, 'r') as f:
             return load(f)
-
-    @staticmethod
-    def _load_src_data(src_data_path):
-        with open(src_data_path, 'r', encoding='utf-16') as f: # Note encoding
-            return list(DictReader(f, delimiter='\t'))
 
     @staticmethod
     def _get_thumbnail_url(netid):
@@ -200,47 +95,47 @@ class App():
             print(str(e), file=stderr)
 
     @staticmethod
-    def _map_csv_row_to_airtable_fields(csv_row, scrape_photo=False, update=False):
+    def _map_report_row_to_airtable_fields(report_row, scrape_photo=False, update=False):
         'update=True will exclude University ID and Preferred Name'
         # TODO: What would a better report have?
-        # * Long Title
+        # * Better Title
         # * netid
-        # Funding source
+        # * Funding source
         try:
             data = {}
             if not update:
-                data['University ID'] = csv_row.emplid
-            data['Division'] = csv_row['Department Name']
-            data['Admin. Group'] = csv_row.admin_group
+                data['University ID'] = report_row.emplid
+            data['Division'] = report_row['Department Name']
+            data['Admin. Group'] = report_row.admin_group
             data['Search Status'] = 'Hired'
-            phone = csv_row.phone
+            phone = report_row.phone
             if phone:
                 data['University Phone'] = phone
-            data['End Date'] = csv_row.term_end
-            data['Term/Perm/CA Track'] = csv_row.term_perm
-            data['Title'] = csv_row['Position - Job Title']
-            data['Email'] = csv_row['E-Mail']
+            data['End Date'] = report_row.term_end
+            data['Term/Perm/CA Track'] = report_row.term_perm
+            data['Title'] = report_row['Position - Job Title']
+            data['Email'] = report_row['E-Mail']
             if not update:
-                data['Preferred Name'] = csv_row.preferred_name
-            data['Last Name'] = csv_row.last_name
-            data['First Name'] = csv_row.first_name
-            data['Time'] = csv_row.time
-            data['Start Date'] = csv_row.start_date
-            data['Grade'] = csv_row.grade
-            data['Sal. Plan'] = csv_row['Sal Plan']
-            data['Position Number'] = csv_row.position_number
-            data['Address'] = csv_row['Telephone DB Office Location']
-            netid = app._netid_from_ldap(csv_row.emplid)
+                data['Preferred Name'] = report_row.preferred_name
+            data['Last Name'] = report_row.last_name
+            data['First Name'] = report_row.first_name
+            data['Time'] = report_row.time
+            data['Start Date'] = report_row.start_date
+            data['Grade'] = report_row.grade
+            data['Sal. Plan'] = report_row['Sal Plan']
+            data['Position Number'] = report_row.position_number
+            data['Address'] = report_row['Telephone DB Office Location']
+            netid = self._ldap.netid(report_row.emplid)
             data['netid'] = netid
             if scrape_photo:
                 thumbnail = App._get_thumbnail_url(netid)
                 if thumbnail:
                     data['Headshot'] = [ {'url': thumbnail} ]
                 else:
-                    data['Headshot'] = [ {'url': App.NO_PHOTO_IMAGE} ]
+                    data['Headshot'] = [ {'url': StaffAirtable.NO_PHOTO_IMAGE} ]
             return data
         except Exception as e:
-            print(f'Error with emplid {csv_row.emplid}', file=stderr)
+            print(f'Error with emplid {report_row.emplid}', file=stderr)
             raise e
 
 def print_json(json_payload, f=stdout):
@@ -249,20 +144,13 @@ def print_json(json_payload, f=stdout):
     print(dumps(json_payload, ensure_ascii=False, indent=2), file=f)
 
 if __name__ == '__main__':
-
     report = './Alpha Roster.csv'
-    # TODO: make Report an object with many Source Rows
-    # TODO: make Airtable an object
     app = App(report)
-    # TODO: when complete wrap these four in one "run_checks()" method
-    # app.check_all_emplids_from_report_in_airtable() # prints warnings
-    # app.check_all_emplids_from_airtable_in_report() # prints warnings
-    # app.check_all_position_numbers_from_report_in_airtable() # prints warnings
-    # app.check_all_position_numbers_from_airtable_in_report() # prints warnings
+    # app.run_checks()
+    app.employee_to_vacancy('940002923') # updates and prints warnings
+   
     # TODO: check all position numbers are unique in airtable
     # TODO: Log adds and updates.
 
-    # app.employee_to_vacancy('940007715') # updates and prints warnings
-    
     # app.sync_airtable_with_report(scrape_photo=False) # updates
-    app.update_supervisor_hierarchy() # updates and prints warnings
+    # app.update_supervisor_hierarchy() # updates and prints warnings
