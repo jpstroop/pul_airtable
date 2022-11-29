@@ -1,6 +1,8 @@
 from pyairtable import Table
 from re import sub
-
+from sys import stderr
+from sys import stdout
+from time import sleep
 
 class StaffAirtable():
     
@@ -43,18 +45,20 @@ class StaffAirtable():
     def get_record_by_position_no(self, pn):
         return self._table.first(formula=f'{{Position Number}} = "{pn}"')
 
-    def add_new_record(self, csv_row):
-        csv_row = SrcRow(csv_row)
-        airtable_record = self._table.get_record_by_emplid(csv_row.emplid)
-        if airtable_record:
+    def add_new_record(self, data, by_pn=False):
+        emplid = data['University ID']
+        if self.get_record_by_emplid(emplid):
             name = airtable_record['Preferred Name']
             raise Exception(f'A record already exists for {emplid} ({name})')
-        else: # TODO: Add logic should be in App. 
-            data = App._map_csv_row_to_airtable_fields(csv_row) ## TODO where does this go? app passes it?
+        else:
             self._table.create(data)
-            print(f'Added {csv_row.emplid} ({csv_row["Name"]})')
+            print(f'Added {emplid} ({data["Preferred Name"]})')
 
-    def update_record(self, record_id, data):
+    def update_record(self, record_id, data, log=False):
+        if log:
+            position_no = data.get('Position Number')
+            emplid = data['University ID']
+            print(f'Updated position {position_no} with {emplid} ({data["Preferred Name"]})')
         self._table.update(record_id, data)
 
     def employee_to_vacancy(self, emplid):
@@ -71,12 +75,13 @@ class StaffAirtable():
             "Search Status": "Recently Vacated",
             "Start Date": None,
             "University ID": None,
-            "University Phone": None
+            "University Phone": None,
+            "FWA/Hours": None
         }
         self._table.update(airtable_record['id'], data)
         print(f'Created {data["Preferred Name"]} (was {airtable_record["fields"]["Preferred Name"]})')
 
-    def update_supervisor_hierarchy(self, staff_report):
+    def update_supervisor_hierarchy(self, staff_report, throttle_interval):
         for empl, supr in staff_report.supervisor_hierarchy:
             try:
                 employee_record = self.get_record_by_emplid(empl) # TODO: Will error if not found
@@ -90,14 +95,20 @@ class StaffAirtable():
                         "Manager/Supervisor" : [ supervisor_record['id'] ]
                     }
                 }]
-                self.table.batch_update(updates)
+                self._table.batch_update(updates)
                 # TODO: could build a big struct at once if we wanted (above), rather than row by row
             except Exception as e:
+
                 print("****Error****", file=stderr)
                 print('Employee record:', file=stderr)
-                print_json(employee_at_record, f=stderr)
+                print_json(employee_record, f=stderr)
                 print('Supervisor record:', file=stderr)
-                print_json(supervisor_at_record, f=stderr)
+                print_json(supervisor_record, f=stderr)
                 print(f"Original Error: {str(e)}", file=stderr)
                 #TODO likely a missing supervisor. Print name from CSV?
-            sleep(THROTTLE_INTERVAL)
+            sleep(throttle_interval)
+
+def print_json(json_payload, f=stdout):
+    # For debugging
+    from json import dumps
+    print(dumps(json_payload, ensure_ascii=False, indent=2), file=f)

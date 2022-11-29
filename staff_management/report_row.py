@@ -33,7 +33,11 @@ class ReportRow():
 
     @property
     def super_emplid(self):
-        return self._row['Manager/Supervisor Emplid'].zfill(9)
+        emplid = self._row.get('Manager/Supervisor Emplid')
+        if emplid:
+            return emplid.zfill(9)
+        else:
+            return None
 
     @property
     def admin_group(self):
@@ -49,7 +53,7 @@ class ReportRow():
 
     @property
     def phone(self):
-        data = self._row['OL1 Phone - Phone Number'].strip()
+        data = self._row.get('OL1 Phone - Phone Number')
         if data:
             local = data.split('/')[1]
             return f"(609) {local}"
@@ -58,13 +62,11 @@ class ReportRow():
 
     @property
     def term_end(self):
-        field_data = self._row["Estimated Appt End Date"]
-        if field_data:
-            return SrcRow.parse_date(field_data)
+        return self._row.get("Estimated Appt End Date")
 
     @property
     def term_perm(self):
-        end = self._row["Estimated Appt End Date"]
+        end = self._row.get("Estimated Appt End Date")
         sal_plan = self._row["Sal Plan"]
         if end and sal_plan == "LR":
             return "CA Track"
@@ -98,11 +100,16 @@ class ReportRow():
 
     @property
     def start_date(self):
-        return SrcRow.parse_date(self._row['Hire Date'])
+        return ReportRow.parse_date(self._row['Hire Date'])
+
+
+    @property
+    def address(self):
+        return self.get('Telephone DB Office Location')
 
     @property
     def position_number(self):
-        if self._row['Position Number'].strip():
+        if self._row.get('Position Number'):
             return self._row['Position Number']
         elif self.term_perm == "Casual Hourly":
             return "[N/A - Casual]"
@@ -111,7 +118,7 @@ class ReportRow():
 
     @property
     def grade(self):
-        grade = self._row['Grade']
-        if self._row['Sal Plan'] in ('ADM', 'AIT', 'BLB'):
-            grade = int(grade)
+        grade = self._row.get('Grade')
+        if grade:
+            grade = str(int(grade))
         return grade
