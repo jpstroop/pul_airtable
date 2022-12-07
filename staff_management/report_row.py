@@ -16,6 +16,7 @@ class ReportRow():
     def __getitem__(self, key):
         return self._row[key]
 
+
     def get(self, key, default=None):
         return self._row.get(key, default)
 

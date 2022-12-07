@@ -13,7 +13,7 @@ THROTTLE_INTERVAL = 0.2
 class App():
     def __init__(self, src_data_path):
         conf = App._load_private()
-        self._airtable = StaffAirtable(conf["API_KEY"], conf["BASE_ID"], conf["TABLE_ID"])
+        self._airtable = StaffAirtable(conf["API_KEY"], conf["BASE_ID"], conf["MAIN_TABLE_ID"], conf["DEPARTED_TABLE_ID"])
         self._staff_report = StaffReport(src_data_path)
         self._ldap = LDAP(conf["LDAP_HOST"], conf["LDAP_OC"])
         
@@ -64,7 +64,7 @@ class App():
         missing_from_airtable = [pn for pn in report_pns if pn not in airtable_pns]
         for pn in missing_from_airtable:
             name = self._staff_report.get_record_by_position_no(pn)["Name"]
-            print(f'Position Number {pn} ({name}) is missing from CSV Report.')
+            print(f'Position Number {pn} ({name}) is missing from Airtable.')
 
     def check_all_position_numbers_from_airtable_in_report(self):
         airtable_pns = self._airtable.all_position_numbers
@@ -86,9 +86,7 @@ class App():
             data['Division'] = report_row['Department Name']
             data['Admin. Group'] = report_row.admin_group
             data['Search Status'] = 'Hired'
-            phone = report_row.phone
-            if phone:
-                data['University Phone'] = phone
+            data['University Phone'] = report_row.phone
             data['End Date'] = report_row.term_end
             data['Term/Perm/CA Track'] = report_row.term_perm
             data['Title'] = report_row['Position - Job Title']
@@ -154,12 +152,10 @@ if __name__ == '__main__':
     app = App(report)
 
     # app.run_checks()
-    # app.employee_to_vacancy('940004270') # updates and prints warnings
+    # app.employee_to_vacancy('940003890') # updates and prints warnings
        
     # TODO: check all position numbers are unique in airtable
     # TODO: Log adds and updates.
-    # TODO: when adding a new person, check if their position number exists, and 
-    # if so, update that record instead.
 
     # app.sync_airtable_with_report(scrape_photo=False) # updates
     app.update_supervisor_hierarchy() # updates and prints warnings
