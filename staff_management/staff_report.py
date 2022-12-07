@@ -14,7 +14,7 @@ class StaffReport():
 
     def get_record_by_position_no(self, pn):
         for row in self.rows:
-            if row['Position Number'] == pn:
+            if row.get('Position Number') == pn:
                 return row
         return None
 
