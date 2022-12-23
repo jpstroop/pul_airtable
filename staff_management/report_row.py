@@ -103,6 +103,9 @@ class ReportRow():
     def start_date(self):
         return ReportRow.parse_date(self._row['Hire Date'])
 
+    @property
+    def rehire_date(self):
+        return ReportRow.parse_date(self._row['Rehire Date'])
 
     @property
     def address(self):

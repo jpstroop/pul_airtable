@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from json import load
 from requests import get
+from staff_management.earnings_detail_report import EarningsDetailReport
 from staff_management.ldap import LDAP
 from staff_management.staff_airtable import StaffAirtable
 from staff_management.staff_report import StaffReport
@@ -75,6 +76,14 @@ class App():
             if not name.startswith('__VACANCY'):
                 print(f'Position Number {pn} ({name}) is missing from CSV Report.')
 
+    def update_funding_sources(self, report_path):
+        report = EarningsDetailReport(report_path)
+        for entry in report.items():
+            airtable_record = self._airtable.get_record_by_emplid(entry[0])
+            if airtable_record:
+                data = {'Funding Source(s)' : entry[1]}
+                self._airtable.update_record(airtable_record['id'], data)
+
     def _map_report_row_to_airtable_fields(self, report_row, scrape_photo=False):
         # TODO: What would a better report have?
         # * Better Title
@@ -95,6 +104,7 @@ class App():
             data['First Name'] = report_row.first_name
             data['Time'] = report_row.time
             data['Start Date'] = report_row.start_date
+            data['Rehire Date'] = report_row.rehire_date
             data['Grade'] = report_row.grade
             data['Sal. Plan'] = report_row['Sal Plan']
             data['Position Number'] = report_row.position_number
@@ -150,6 +160,7 @@ def print_json(json_payload, f=stdout):
 if __name__ == '__main__':
     report = './Alpha Roster.csv'
     app = App(report)
+    # app.update_funding_sources('./Earnings Detail by Person.csv')
 
     # app.run_checks()
     # app.employee_to_vacancy('940003890') # updates and prints warnings
@@ -157,5 +168,5 @@ if __name__ == '__main__':
     # TODO: check all position numbers are unique in airtable
     # TODO: Log adds and updates.
 
-    # app.sync_airtable_with_report(scrape_photo=False) # updates
-    app.update_supervisor_hierarchy() # updates and prints warnings
+    app.sync_airtable_with_report(scrape_photo=False) # updates
+    #app.update_supervisor_hierarchy() # updates and prints warnings
