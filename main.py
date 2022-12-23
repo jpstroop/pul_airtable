@@ -177,3 +177,4 @@ if __name__ == '__main__':
     # app.employee_to_vacancy('010005013')
     app.sync_airtable_with_report(scrape_photo=False) # updates
     app.update_supervisor_hierarchy() # updates and prints warnings
+
