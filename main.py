@@ -106,7 +106,7 @@ class App():
             data['Start Date'] = report_row.start_date
             data['Rehire Date'] = report_row.rehire_date
             data['Grade'] = report_row.grade
-            data['Sal. Plan'] = report_row['Sal Plan']
+            data['Sal. Plan'] = report_row.get('Sal Plan')
             data['Position Number'] = report_row.position_number
             data['Address'] = report_row.address
             netid = self._ldap.netid(report_row.emplid)
@@ -161,12 +161,11 @@ if __name__ == '__main__':
     report = './Alpha Roster.csv'
     app = App(report)
     # app.update_funding_sources('./Earnings Detail by Person.csv')
-
     # app.run_checks()
-    # app.employee_to_vacancy('940003890') # updates and prints warnings
+    # app.employee_to_vacancy('010019334') # updates and prints warnings
        
     # TODO: check all position numbers are unique in airtable
     # TODO: Log adds and updates.
 
-    app.sync_airtable_with_report(scrape_photo=False) # updates
-    #app.update_supervisor_hierarchy() # updates and prints warnings
+    # app.sync_airtable_with_report(scrape_photo=False) # updates
+    app.update_supervisor_hierarchy() # updates and prints warnings

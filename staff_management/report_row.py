@@ -1,4 +1,5 @@
 from datetime import date
+from sys import stderr
 
 class ReportRow():
     '''A row from the Alpha Roster - Job and Personal Data - Point in Time Report
@@ -42,8 +43,11 @@ class ReportRow():
 
     @property
     def admin_group(self):
-        sal_pln = self._row['Sal Plan Descr']
-        if sal_pln.startswith('Library Support'):
+        sal_pln = self._row.get('Sal Plan Descr')
+        if sal_pln is None:
+            print(f"{self.emplid} lacks a Sal Plan Descr in the staff report")
+            return None
+        elif sal_pln.startswith('Library Support'):
             return 'HR: PULA'
         elif sal_pln.startswith('Reg Prof Specialist'):
             return 'DoF: Professional Specialist'
@@ -68,7 +72,10 @@ class ReportRow():
     @property
     def term_perm(self):
         end = self._row.get("Estimated Appt End Date")
-        sal_plan = self._row["Sal Plan"]
+        sal_plan = self._row.get("Sal Plan")
+        if sal_plan is None:
+            print(f"{self.emplid} lacks a Sal Plan in the staff report")
+            return None
         if end and sal_plan == "LR":
             return "CA Track"
         elif self._row["Staff"] == "Casual Hourly":

@@ -69,7 +69,7 @@ class StaffAirtable():
         del record_copy['Manager/Supervisor']
         del record_copy['Headshot']
         del record_copy['Anniversary?']
-        self._departed_table.create(record_copy) # might need a check if exists, but let's try w/o
+        self._departed_table.create(record_copy, typecast=True) # might need a check if exists, but let's try w/o
         data =  {
             "Address": None,
             "Email": None,
