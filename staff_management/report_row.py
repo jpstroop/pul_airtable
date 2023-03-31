@@ -131,5 +131,5 @@ class ReportRow():
     def grade(self):
         grade = self._row.get('Grade')
         if grade:
-            grade = str(int(grade))
+            grade = int(grade)
         return grade

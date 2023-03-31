@@ -12,7 +12,7 @@ class StaffAirtable():
 
     def __init__(self, api_key, base_id, main_table_id, departed_table_id):
         self._main_table = Table(api_key, base_id, main_table_id)
-        self._departed_table = Table(api_key, base_id, departed_table_id)
+        # self._departed_table = Table(api_key, base_id, departed_table_id)
         self._next_vacancy_number = None
 
     @property
@@ -66,10 +66,10 @@ class StaffAirtable():
     def employee_to_vacancy(self, emplid):
         airtable_record = self.get_record_by_emplid(emplid)
         record_copy = deepcopy(airtable_record['fields'])
-        del record_copy['Manager/Supervisor']
-        del record_copy['Headshot']
-        del record_copy['Anniversary?']
-        self._departed_table.create(record_copy, typecast=True) # might need a check if exists, but let's try w/o
+        record_copy.pop('Manager/Supervisor', None)
+        record_copy.pop('Headshot', None)
+        record_copy.pop('Anniversary?', None)
+        # self._departed_table.create(record_copy, typecast=True) # might need a check if exists, but let's try w/o
         data =  {
             "Address": None,
             "Email": None,

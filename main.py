@@ -2,7 +2,6 @@ from bs4 import BeautifulSoup
 from json import load
 from requests import get
 from staff_management.earnings_detail_report import EarningsDetailReport
-from staff_management.ldap import LDAP
 from staff_management.staff_airtable import StaffAirtable
 from staff_management.staff_report import StaffReport
 from sys import stderr
@@ -16,7 +15,6 @@ class App():
         conf = App._load_private()
         self._airtable = StaffAirtable(conf["API_KEY"], conf["BASE_ID"], conf["MAIN_TABLE_ID"], conf["DEPARTED_TABLE_ID"])
         self._staff_report = StaffReport(src_data_path)
-        self._ldap = LDAP(conf["LDAP_HOST"], conf["LDAP_OC"])
         
     def sync_airtable_with_report(self, scrape_photo=False):
         for r in self._staff_report.rows:
@@ -30,9 +28,10 @@ class App():
                     airtable_record = self._airtable.get_record_by_position_no(position_no)
             if airtable_record:
                 data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo)
+                # TODO: check that position number has not changed here. If it has, log to convert the person to a vacancy first, and exit.
                 self._airtable.update_record(airtable_record['id'], data, log=log)
-            else:
-                data = self._map_report_row_to_airtable_fields(r, scrape_photo=True)
+            else: # this is a NEW record
+                data = self._map_report_row_to_airtable_fields(r, update=False, scrape_photo=True)
                 self._airtable.add_new_record(data)
                 sleep(THROTTLE_INTERVAL)
 
@@ -57,7 +56,7 @@ class App():
         for emplid in missing_from_report:
             name = self._airtable.get_record_by_emplid(emplid)['fields'].get('Preferred Name')
             if name != "Anne Jarvis":
-                print(f'Employee {emplid} ({name}) is missing from CSV Report; #employee_to_vacancy(emplid) will remove them.')
+                print(f'Employee {emplid} ({name}) is missing from CSV Report; #employee_to_vacancy(\'{emplid}\') will remove them.')
 
     def check_all_position_numbers_from_report_in_airtable(self):
         airtable_pns = self._airtable.all_position_numbers
@@ -84,11 +83,11 @@ class App():
                 data = {'Funding Source(s)' : entry[1]}
                 self._airtable.update_record(airtable_record['id'], data)
 
-    def _map_report_row_to_airtable_fields(self, report_row, scrape_photo=False):
+    def _map_report_row_to_airtable_fields(self, report_row, update=True, scrape_photo=False):
         # TODO: What would a better report have?
         # * Better Title
-        # * netid
         # * Funding source
+        # Update = True will replace the preferred name
         try:
             data = {}
             data['University ID'] = report_row.emplid
@@ -109,9 +108,10 @@ class App():
             data['Sal. Plan'] = report_row.get('Sal Plan')
             data['Position Number'] = report_row.position_number
             data['Address'] = report_row.address
-            netid = self._ldap.netid(report_row.emplid)
+            netid = report_row['Net ID']
             data['netid'] = netid
-            data['Preferred Name'] = report_row.preferred_name
+            if update:
+                data['Preferred Name'] = report_row.preferred_name
             if scrape_photo:
                 thumbnail = App._get_thumbnail_url(netid)
                 if thumbnail:
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     app = App(report)
     # app.update_funding_sources('./Earnings Detail by Person.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('010019334') # updates and prints warnings
+    # app.employee_to_vacancy('310107147') # updates and prints warnings
        
     # TODO: check all position numbers are unique in airtable
     # TODO: Log adds and updates.
