@@ -92,15 +92,12 @@ class ReportRow():
     @property
     def first_name(self):
         field_data = self._row['Name']
-        return field_data.split(',')[1].split(' ')[0] # drops initial
+        return field_data.split(',')[1]
 
     @property
     def last_name(self):
         field_data = self._row['Name']
-        last = field_data.split(',')[0]
-        if not last.startswith("Al "): # keep, e.g., "Al Amin"
-            last = last.split(' ')[0] # drops Jr, III, etc,
-        return last
+        return field_data.split(',')[0]
 
     @property
     def time(self):

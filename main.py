@@ -27,8 +27,15 @@ class App():
                     log = True
                     airtable_record = self._airtable.get_record_by_position_no(position_no)
             if airtable_record:
-                data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo)
+                data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo, update=True)
                 # TODO: check that position number has not changed here. If it has, log to convert the person to a vacancy first, and exit.
+                if r.position_number != airtable_record['fields']['Position Number']:
+                    emplid = r.emplid
+                    preferred_name = airtable_record['fields']['Preferred Name']
+                    message = f'''Position Number for {preferred_name} (emplid {emplid}) has changed.
+Consider converting the employee in their current position to a vacancy first:
+app.employee_to_vacancy(\'{emplid}\')'''
+                    exit(message)
                 self._airtable.update_record(airtable_record['id'], data, log=log)
             else: # this is a NEW record
                 data = self._map_report_row_to_airtable_fields(r, update=False, scrape_photo=True)
@@ -56,7 +63,7 @@ class App():
         for emplid in missing_from_report:
             name = self._airtable.get_record_by_emplid(emplid)['fields'].get('Preferred Name')
             if name != "Anne Jarvis":
-                print(f'Employee {emplid} ({name}) is missing from CSV Report; #employee_to_vacancy(\'{emplid}\') will remove them.')
+                print(f'Employee {emplid} ({name}) is missing from CSV Report; app.employee_to_vacancy(\'{emplid}\') will remove them.')
 
     def check_all_position_numbers_from_report_in_airtable(self):
         airtable_pns = self._airtable.all_position_numbers
@@ -72,7 +79,9 @@ class App():
         missing_from_report = [pn for pn in airtable_pns if pn not in report_pns]
         for pn in missing_from_report:
             name = self._airtable.get_record_by_position_no(pn)['fields'].get('Preferred Name')
-            if not name.startswith('__VACANCY'):
+            is_vacancy = name.startswith('__VACANCY')
+            is_anne = pn == '00003305'
+            if not is_vacancy and not is_anne:
                 print(f'Position Number {pn} ({name}) is missing from CSV Report.')
 
     def update_funding_sources(self, report_path):
@@ -83,7 +92,7 @@ class App():
                 data = {'Funding Source(s)' : entry[1]}
                 self._airtable.update_record(airtable_record['id'], data)
 
-    def _map_report_row_to_airtable_fields(self, report_row, update=True, scrape_photo=False):
+    def _map_report_row_to_airtable_fields(self, report_row, update=False, scrape_photo=False):
         # TODO: What would a better report have?
         # * Better Title
         # * Funding source
@@ -160,12 +169,13 @@ def print_json(json_payload, f=stdout):
 if __name__ == '__main__':
     report = './Alpha Roster.csv'
     app = App(report)
+    # print_json(app._airtable.get_record_by_emplid('940007217'))
     # app.update_funding_sources('./Earnings Detail by Person.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('310107147') # updates and prints warnings
+    # app.employee_to_vacancy('961272722') # updates and prints warnings
        
     # TODO: check all position numbers are unique in airtable
     # TODO: Log adds and updates.
 
-    # app.sync_airtable_with_report(scrape_photo=False) # updates
-    app.update_supervisor_hierarchy() # updates and prints warnings
+    app.sync_airtable_with_report(scrape_photo=False) # updates
+    # app.update_supervisor_hierarchy() # updates and prints warnings
