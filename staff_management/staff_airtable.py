@@ -7,7 +7,7 @@ from time import sleep
 
 class StaffAirtable():
     
-    VACANT_IMAGE = 'https://dl.airtable.com/.attachments/d5340fc21c451f1733d6ebfff1c79d70/897912fb/Vacant.png'
+    VACANT_IMAGE = 'https://v5.airtableusercontent.com/v1/17/17/1686002400000/5r3fwkTnAYds9aGiVkbVHw/WW-Ay5LGgQ9g7UeDihiGbN662mXrKM3e_7cM0T2W3ntrpoowOZ02OmerFwvEcxOJFCtOpXkPj2XAj5SrXGbReA/z7b1lTOgOmrw_DFI8K6Lim53GoR2GYz41eO5P5qN6eI'
     NO_PHOTO_IMAGE = 'https://dl.airtable.com/.attachmentThumbnails/6285b261926b8d097fe02a5639817553/e08f234a.png'
 
     def __init__(self, api_key, base_id, main_table_id, departed_table_id):
@@ -71,7 +71,6 @@ class StaffAirtable():
         record_copy.pop('Anniversary?', None)
         # self._departed_table.create(record_copy, typecast=True) # might need a check if exists, but let's try w/o
         data =  {
-            "Address": None,
             "Email": None,
             "First Name": None,
             "Headshot": [ {'url': StaffAirtable.VACANT_IMAGE} ],
@@ -104,16 +103,15 @@ class StaffAirtable():
                 }]
                 self._main_table.batch_update(updates)
             except Exception as e:
-                print("****Error****", file=stderr)
-                print('Employee record:', file=stderr)
-                print_json(employee_record, f=stderr)
-                print('Supervisor record:', file=stderr)
-                print_json(supervisor_record, f=stderr)
-                print(f"Original Error: {str(e)}", file=stderr)
-                #TODO likely a missing supervisor. Print name from CSV?
+                empl_name = employee_record['fields']['Preferred Name']
+                if supervisor_record is None:
+                    print(f"{empl_name} lacks a supervisor", file=stderr)
+                else:
+                    print(f"Error with {empl_name}", file=stderr)
+                    print(f"Original Error: {str(e)}", file=stderr)
             sleep(throttle_interval)
 
+# For debugging
 def print_json(json_payload, f=stdout):
-    # For debugging
     from json import dumps
     print(dumps(json_payload, ensure_ascii=False, indent=2), file=f)

@@ -78,11 +78,13 @@ app.employee_to_vacancy(\'{emplid}\')'''
         report_pns = self._staff_report.all_position_numbers
         missing_from_report = [pn for pn in airtable_pns if pn not in report_pns]
         for pn in missing_from_report:
-            name = self._airtable.get_record_by_position_no(pn)['fields'].get('Preferred Name')
+            at_record = self._airtable.get_record_by_position_no(pn)
+            name = at_record['fields'].get('Preferred Name')
+            emplid = at_record['fields'].get('University ID')
             is_vacancy = name.startswith('__VACANCY')
             is_anne = pn == '00003305'
             if not is_vacancy and not is_anne:
-                print(f'Position Number {pn} ({name}) is missing from CSV Report.')
+                print(f'Position Number {pn} ({name}) is missing from CSV Report; app.employee_to_vacancy(\'{emplid}\') will remove them.')
 
     def update_funding_sources(self, report_path):
         report = EarningsDetailReport(report_path)
@@ -172,10 +174,6 @@ if __name__ == '__main__':
     # print_json(app._airtable.get_record_by_emplid('940007217'))
     # app.update_funding_sources('./Earnings Detail by Person.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('961272722') # updates and prints warnings
-       
-    # TODO: check all position numbers are unique in airtable
-    # TODO: Log adds and updates.
-
+    # app.employee_to_vacancy('010005013')
     app.sync_airtable_with_report(scrape_photo=False) # updates
-    # app.update_supervisor_hierarchy() # updates and prints warnings
+    app.update_supervisor_hierarchy() # updates and prints warnings
