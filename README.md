@@ -8,16 +8,16 @@ Create a file called `private.json` as a sibling to `main.py` and populate it as
 {
   "API_KEY": "",
   "BASE_ID": "",
-  "TABLE_ID": "",
+  "_TABLE_ID": "",
   "LDAP_HOST": "",
   "LDAP_OC": ""
 }
 ```
 
 ## Installation
-
-Clone and then [ `pipenv`](https://pipenv.pypa.io/en/latest/) install.
+ 1. Install [pipenv](https://pipenv.pypa.io/en/latest/)
+ 1. Clone and then `pipenv install`.
 
 ## Running
 
-Configure as explained above, then look in `main.py`.
+Configure as explained above, then look at the end of `main.py`.

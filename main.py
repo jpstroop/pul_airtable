@@ -13,7 +13,7 @@ THROTTLE_INTERVAL = 0.2
 class App():
     def __init__(self, src_data_path):
         conf = App._load_private()
-        self._airtable = StaffAirtable(conf["API_KEY"], conf["BASE_ID"], conf["MAIN_TABLE_ID"], conf["DEPARTED_TABLE_ID"])
+        self._airtable = StaffAirtable(conf["API_KEY"], conf["BASE_ID"], conf["ALL_STAFF_TABLE_ID"])
         self._staff_report = StaffReport(src_data_path)
         
     def sync_airtable_with_report(self, scrape_photo=False):
@@ -169,6 +169,7 @@ def print_json(json_payload, f=stdout):
     print(dumps(json_payload, ensure_ascii=False, indent=2), file=f)
 
 if __name__ == '__main__':
+    # This is the Alpha Roster report from the Information Warehouse.
     report = './Alpha Roster.csv'
     app = App(report)
     print(app._airtable.next_vacancy)

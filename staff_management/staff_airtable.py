@@ -10,9 +10,8 @@ class StaffAirtable():
     VACANT_IMAGE = 'https://v5.airtableusercontent.com/v1/17/17/1686002400000/5r3fwkTnAYds9aGiVkbVHw/WW-Ay5LGgQ9g7UeDihiGbN662mXrKM3e_7cM0T2W3ntrpoowOZ02OmerFwvEcxOJFCtOpXkPj2XAj5SrXGbReA/z7b1lTOgOmrw_DFI8K6Lim53GoR2GYz41eO5P5qN6eI'
     NO_PHOTO_IMAGE = 'https://dl.airtable.com/.attachmentThumbnails/6285b261926b8d097fe02a5639817553/e08f234a.png'
 
-    def __init__(self, api_key, base_id, main_table_id, departed_table_id):
-        self._main_table = Table(api_key, base_id, main_table_id)
-        # self._departed_table = Table(api_key, base_id, departed_table_id)
+    def __init__(self, api_key, base_id, all_staff_table_id):
+        self._main_table = Table(api_key, base_id, all_staff_table_id)
         self._next_vacancy_number = None
 
     @property
