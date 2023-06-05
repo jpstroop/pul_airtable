@@ -2,7 +2,8 @@
 
 ## Configuration
 
-Create a file called `private.json` as a sibling to `main.py` and populate it as follows:
+Create a file called `private.json` as a sibling to `main.py` and populate it 
+as follows:
 
 ```json
 {
@@ -17,6 +18,9 @@ Create a file called `private.json` as a sibling to `main.py` and populate it as
 ## Installation
  1. Install [pipenv](https://pipenv.pypa.io/en/latest/)
  1. Clone and then `pipenv install`.
+
+Alternatively, install the dependencies listed in [Pipfile](Pipfile) into your 
+environment.
 
 ## Running
 
