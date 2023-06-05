@@ -31,7 +31,7 @@ class App():
                 # TODO: check that position number has not changed here. If it has, log to convert the person to a vacancy first, and exit.
                 if r.position_number != airtable_record['fields']['Position Number']:
                     emplid = r.emplid
-                    preferred_name = airtable_record['fields']['Preferred Name']
+                    preferred_name = airtable_record['fields']['pul:Preferred Name']
                     message = f'''Position Number for {preferred_name} (emplid {emplid}) has changed.
 Consider converting the employee in their current position to a vacancy first:
 app.employee_to_vacancy(\'{emplid}\')'''
@@ -61,7 +61,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
         report_emplids = self._staff_report.all_emplids
         missing_from_report = [i for i in airtable_emplids if i not in report_emplids]
         for emplid in missing_from_report:
-            name = self._airtable.get_record_by_emplid(emplid)['fields'].get('Preferred Name')
+            name = self._airtable.get_record_by_emplid(emplid)['fields'].get('pul:Preferred Name')
             if name != "Anne Jarvis":
                 print(f'Employee {emplid} ({name}) is missing from CSV Report; app.employee_to_vacancy(\'{emplid}\') will remove them.')
 
@@ -79,7 +79,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
         missing_from_report = [pn for pn in airtable_pns if pn not in report_pns]
         for pn in missing_from_report:
             at_record = self._airtable.get_record_by_position_no(pn)
-            name = at_record['fields'].get('Preferred Name')
+            name = at_record['fields'].get('pul:Preferred Name')
             emplid = at_record['fields'].get('University ID')
             is_vacancy = name.startswith('__VACANCY')
             is_anne = pn == '00003305'
@@ -104,7 +104,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
             data['University ID'] = report_row.emplid
             data['Division'] = report_row['Department Name']
             data['Admin. Group'] = report_row.admin_group
-            data['Search Status'] = 'Hired'
+            data['pul:Search Status'] = 'Hired'
             data['University Phone'] = report_row.phone
             data['End Date'] = report_row.term_end
             data['Term/Perm/CA Track'] = report_row.term_perm
@@ -122,7 +122,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
             netid = report_row['Net ID']
             data['netid'] = netid
             if update:
-                data['Preferred Name'] = report_row.preferred_name
+                data['pul:Preferred Name'] = report_row.preferred_name
             if scrape_photo:
                 thumbnail = App._get_thumbnail_url(netid)
                 if thumbnail:
@@ -171,10 +171,11 @@ def print_json(json_payload, f=stdout):
 if __name__ == '__main__':
     report = './Alpha Roster.csv'
     app = App(report)
+    print(app._airtable.next_vacancy)
     # print_json(app._airtable.get_record_by_emplid('940007217'))
     # app.update_funding_sources('./Earnings Detail by Person.csv')
-    # app.run_checks()
-    # app.employee_to_vacancy('010005013')
-    app.sync_airtable_with_report(scrape_photo=False) # updates
-    app.update_supervisor_hierarchy() # updates and prints warnings
+    # # app.run_checks()
+    # # app.employee_to_vacancy('010005013')
+    # app.sync_airtable_with_report(scrape_photo=False) # updates
+    # app.update_supervisor_hierarchy() # updates and prints warnings
 

@@ -18,9 +18,9 @@ class StaffAirtable():
     @property
     def next_vacancy(self):
         if not self._next_vacancy_number:
-            formula = "REGEX_MATCH({Preferred Name}, '^__VACANCY')"
-            records = self._main_table.all(formula=formula, sort=["Preferred Name"])
-            last = sub(r"[^\d]", "", records[-1]["fields"]["Preferred Name"])
+            formula = "REGEX_MATCH({pul:Preferred Name}, '^__VACANCY')"
+            records = self._main_table.all(formula=formula, sort=["pul:Preferred Name"])
+            last = sub(r"[^\d]", "", records[-1]["fields"]["pul:Preferred Name"])
             self._next_vacancy_number = int(last)+1
         else:
             self._next_vacancy_number+=1
@@ -50,17 +50,17 @@ class StaffAirtable():
     def add_new_record(self, data, by_pn=False):
         emplid = data['University ID']
         if self.get_record_by_emplid(emplid):
-            name = airtable_record['Preferred Name']
+            name = airtable_record['pul:Preferred Name']
             raise Exception(f'A record already exists for {emplid} ({name})')
         else:
             self._main_table.create(data)
-            print(f'Added {emplid} ({data["Preferred Name"]})')
+            print(f'Added {emplid} ({data["pul:Preferred Name"]})')
 
     def update_record(self, record_id, data, log=False):
         if log:
             position_no = data.get('Position Number')
             emplid = data['University ID']
-            print(f'Updated position {position_no} with {emplid} ({data["Preferred Name"]})')
+            print(f'Updated position {position_no} with {emplid} ({data["pul:Preferred Name"]})')
         self._main_table.update(record_id, data)
 
     def employee_to_vacancy(self, emplid):
@@ -75,17 +75,17 @@ class StaffAirtable():
             "First Name": None,
             "Headshot": [ {'url': StaffAirtable.VACANT_IMAGE} ],
             "Last Name": None,
-            "Last Occupant": airtable_record["fields"]["Preferred Name"],
+            "Last Occupant": airtable_record["fields"]["pul:Preferred Name"],
             "netid": None,
-            "Preferred Name": self.next_vacancy,
-            "Search Status": "Recently Vacated",
+            "pul:Preferred Name": self.next_vacancy,
+            "pul:Search Status": "Recently Vacated",
             "Start Date": None,
             "University ID": None,
             "University Phone": None,
             "FWA/Hours": None
         }
         self._main_table.update(airtable_record['id'], data)
-        print(f'Created {data["Preferred Name"]} (was {airtable_record["fields"]["Preferred Name"]})')
+        print(f'Created {data["pul:Preferred Name"]} (was {airtable_record["fields"]["pul:Preferred Name"]})')
 
     def update_supervisor_hierarchy(self, staff_report, throttle_interval):
         for empl, supr in staff_report.supervisor_hierarchy:
@@ -103,7 +103,7 @@ class StaffAirtable():
                 }]
                 self._main_table.batch_update(updates)
             except Exception as e:
-                empl_name = employee_record['fields']['Preferred Name']
+                empl_name = employee_record['fields']['pul:Preferred Name']
                 if supervisor_record is None:
                     print(f"{empl_name} lacks a supervisor", file=stderr)
                 else:
