@@ -15,6 +15,10 @@ class App():
         conf = App._load_private()
         self._airtable = StaffAirtable(conf["API_KEY"], conf["BASE_ID"], conf["ALL_STAFF_TABLE_ID"])
         self._staff_report = StaffReport(src_data_path)
+
+    @property
+    def all_vacancies(self):
+        return self._airtable.all_vacancies
         
     def sync_airtable_with_report(self, scrape_photo=False):
         for r in self._staff_report.rows:
@@ -33,7 +37,7 @@ class App():
                     emplid = r.emplid
                     preferred_name = airtable_record['fields']['pul:Preferred Name']
                     message = f'''Position Number for {preferred_name} (emplid {emplid}) has changed.
-Consider converting the employee in their current position to a vacancy first:
+Consider converting the employee in their current position to a vacancy first with
 app.employee_to_vacancy(\'{emplid}\')'''
                     exit(message)
                 self._airtable.update_record(airtable_record['id'], data, log=log)
@@ -172,7 +176,7 @@ if __name__ == '__main__':
     # This is the Alpha Roster report from the Information Warehouse.
     report = './Alpha Roster.csv'
     app = App(report)
-    print(app._airtable.next_vacancy)
+    print_json(app.all_vacancies)
     # print_json(app._airtable.get_record_by_emplid('940007217'))
     # app.update_funding_sources('./Earnings Detail by Person.csv')
     # # app.run_checks()

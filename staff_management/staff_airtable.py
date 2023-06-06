@@ -37,7 +37,15 @@ class StaffAirtable():
         return list(filter(filt, [n['fields'].get('Position Number', "") for n in nos]))
 
     @property
-    def all_vacancy_position_numbers(self):
+    def all_vacancies(self):
+        formula = "REGEX_MATCH({pul:Preferred Name}, '^__VACANCY')"
+        return self._main_table.all(formula=formula, sort=["pul:Preferred Name"])
+
+    @property
+    def all_vacancy_position_ids(self):
+        '''This is the position number for HR jobs, and the last occupant for 
+        DoF jobs.
+        '''
         pass
 
     def get_record_by_emplid(self, emplid):
