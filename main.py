@@ -13,7 +13,7 @@ THROTTLE_INTERVAL = 0.2
 class App():
     def __init__(self, src_data_path):
         conf = App._load_private()
-        self._airtable = StaffAirtable(conf["API_KEY"], conf["BASE_ID"], conf["ALL_STAFF_TABLE_ID"])
+        self._airtable = StaffAirtable(conf["PAT"], conf["BASE_ID"], conf["ALL_STAFF_TABLE_ID"])
         self._staff_report = StaffReport(src_data_path)
 
     @property
@@ -176,11 +176,11 @@ if __name__ == '__main__':
     # This is the Alpha Roster report from the Information Warehouse.
     report = './Alpha Roster.csv'
     app = App(report)
-    print_json(app.all_vacancies)
+    # print_json(app.all_vacancies)
     # print_json(app._airtable.get_record_by_emplid('940007217'))
     # app.update_funding_sources('./Earnings Detail by Person.csv')
-    # # app.run_checks()
+    # app.run_checks()
     # # app.employee_to_vacancy('010005013')
     # app.sync_airtable_with_report(scrape_photo=False) # updates
-    # app.update_supervisor_hierarchy() # updates and prints warnings
+    app.update_supervisor_hierarchy() # updates and prints warnings
 

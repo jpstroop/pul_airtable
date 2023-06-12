@@ -2,16 +2,16 @@
 
 ## Configuration
 
+Visit https://airtable.com/create/tokens and create a token with `data.records:read` and `data.records:write`. A
+
 Create a file called `private.json` as a sibling to `main.py` and populate it 
 as follows:
 
 ```json
 {
-  "API_KEY": "",
+  "PAT": "",
   "BASE_ID": "",
-  "_TABLE_ID": "",
-  "LDAP_HOST": "",
-  "LDAP_OC": ""
+  "ALL_STAFF_TABLE_ID": "",
 }
 ```
 

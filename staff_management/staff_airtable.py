@@ -10,8 +10,8 @@ class StaffAirtable():
     VACANT_IMAGE = 'https://github.com/jpstroop/pul_airtable/blob/main/vacant.png'
     NO_PHOTO_IMAGE = 'https://github.com/jpstroop/pul_airtable/blob/main/no_photo.png'
 
-    def __init__(self, api_key, base_id, all_staff_table_id):
-        self._main_table = Table(api_key, base_id, all_staff_table_id)
+    def __init__(self, personal_access_token, base_id, all_staff_table_id):
+        self._main_table = Table(personal_access_token, base_id, all_staff_table_id)
         self._next_vacancy_number = None
 
     @property
@@ -43,8 +43,8 @@ class StaffAirtable():
 
     @property
     def all_vacancy_position_ids(self):
-        '''This is the position number for HR jobs, and the last occupant for 
-        DoF jobs.
+        '''This is the position number for HR jobs, and the name of the last 
+        occupant for DoF jobs.
         '''
         pass
 
