@@ -1,4 +1,4 @@
-# OrgChart Populator
+# PUL Staff Airtable
 
 ## Configuration
 
