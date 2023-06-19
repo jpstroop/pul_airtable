@@ -179,8 +179,9 @@ if __name__ == '__main__':
     # print_json(app.all_vacancies)
     # print_json(app._airtable.get_record_by_emplid('940007217'))
     # app.update_funding_sources('./Earnings Detail by Person.csv')
+
     # app.run_checks()
-    # # app.employee_to_vacancy('010005013')
+    app.employee_to_vacancy('940007152')
     # app.sync_airtable_with_report(scrape_photo=False) # updates
-    app.update_supervisor_hierarchy() # updates and prints warnings
+    # app.update_supervisor_hierarchy() # updates and prints warnings
 

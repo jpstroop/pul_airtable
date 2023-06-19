@@ -89,7 +89,7 @@ class StaffAirtable():
             "Start Date": None,
             "University ID": None,
             "University Phone": None,
-            "FWA/Hours": None
+            "pul:FWA/Hours": None
         }
         self._main_table.update(airtable_record['id'], data)
         print(f'Created {data["pul:Preferred Name"]} (was {airtable_record["fields"]["pul:Preferred Name"]})')
