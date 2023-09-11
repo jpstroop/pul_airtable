@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+from csv import DictReader
 from json import load
 from requests import get
 from staff_management.earnings_detail_report import EarningsDetailReport
@@ -145,6 +146,25 @@ app.employee_to_vacancy(\'{emplid}\')'''
         self.check_all_position_numbers_from_report_in_airtable() # prints warnings
         self.check_all_position_numbers_from_airtable_in_report() # prints warnings
 
+    def update_titles_from_absense_mgr_report(self, report_path):
+        with open(report_path, 'r', encoding='utf-8') as f: # Note encoding
+            rows = [r for r in DictReader(f)]
+        for r in rows:
+            emplid = r['EID'].zfill(9)
+            at_record = app._airtable.get_record_by_emplid(emplid)
+            sleep(THROTTLE_INTERVAL)
+            if at_record:
+                title = None
+                if not r['Register Title'].strip():
+                    title = r['Title']
+                else:
+                    title = " ".join(r['Register Title'].split()).strip()
+                data = {"Title" : title}
+                self._airtable.update_record(at_record['id'], data)
+                sleep(THROTTLE_INTERVAL)
+            else:
+                print(f"No AT record for {emplid}")
+
     @staticmethod
     def _load_private(pth='./private.json'):
         with open(pth, 'r') as f:
@@ -176,13 +196,16 @@ if __name__ == '__main__':
     # This is the Alpha Roster report from the Information Warehouse.
     report = './Alpha Roster.csv'
     app = App(report)
+    app.update_titles_from_absense_mgr_report('./Department Absence Manager Report - Library-en.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('960484773')
     # app.sync_airtable_with_report(scrape_photo=False) # updates
+    # app.employee_to_vacancy('940003133')
+    # app.employee_to_vacancy('961095725')
+    # app.employee_to_vacancy('010000719')
     
     # print_json(app._airtable.get_record_by_emplid('920312674'))
 
-    app.update_supervisor_hierarchy() # updates and prints warnings
+    # app.update_supervisor_hierarchy() # updates and prints warnings
 
     # print_json(app.all_vacancies)
     # print_json(app._airtable.get_record_by_emplid('940007217'))

@@ -58,16 +58,21 @@ class StaffAirtable():
         emplid = data['University ID']
         if self.get_record_by_emplid(emplid):
             name = airtable_record['pul:Preferred Name']
-            raise Exception(f'A record already exists for {emplid} ({name})')
+            raise Exception(f'A record already exists for {emplid} ({name})', file=stderr)
         else:
             self._main_table.create(data)
             print(f'Added {emplid} ({data["pul:Preferred Name"]})')
 
-    def update_record(self, record_id, data, log=False):
+    def update_record(self, record_id, data, log=False, debug=False):
+        if debug:
+            print('*'*80, file=stderr)
+            print_json(data)
         if log:
             position_no = data.get('Position Number')
             emplid = data['University ID']
             print(f'Updated position {position_no} with {emplid} ({data["pul:Preferred Name"]})')
+        if debug:
+            print('*'*80, file=stderr)
         self._main_table.update(record_id, data)
 
     def employee_to_vacancy(self, emplid):
@@ -114,8 +119,13 @@ class StaffAirtable():
                 if supervisor_record is None:
                     print(f"{empl_name} lacks a supervisor", file=stderr)
                 else:
+                    print("Employee Record:", file=stderr)
+                    print_json(employee_record, file=stderr)
+                    print("Supervisor record:", file=stderr)
+                    print_json(supervisor_record, file=stderr)
                     print(f"Error with {empl_name}", file=stderr)
                     print(f"Original Error: {str(e)}", file=stderr)
+
             sleep(throttle_interval)
 
 # For debugging

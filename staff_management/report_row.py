@@ -23,9 +23,10 @@ class ReportRow():
 
     @staticmethod
     def parse_date(s):
-        # handles "MM/DD/YY (0:00)"
-        # m, d, y = map(int, s.split(" ")[0].split("/"))
-        # y = y+2000 if y <= 22 else y+1900
+        if "/" in s:
+            m, d, y = map(int, s.split(" ")[0].split("/"))
+            # y = y+2000 if y <= 22 else y+1900 - it seems we can assume we'll get a 4 digit year
+            return str(date(y, m, d))
         # return date(y, m, d)
         return str(date.fromisoformat(s.split(" ")[0]))
 
