@@ -8,7 +8,7 @@ with open('./All Staff-Data for Org Chart.csv', 'r', encoding='utf-8-sig') as f:
 
 INDENT = '        '
 
-def format_entry(row, leading_space):
+def format_entry(row, leading_space=''):
     entry = f"{leading_space}Name: {row['pul:Preferred Name']}"
     entry += f"\n{leading_space}Title: {row['Title']}"
     if row.get("pul:Team"):
@@ -25,14 +25,14 @@ def format_entry(row, leading_space):
     entry += "\n"
     return entry
 
-def list_reports(row, leading_space, f=stdout):
+def list_reports(row, leading_space='', f=stdout):
     print(format_entry(row, leading_space=leading_space), file=stdout)
     reports = get_reports(row)
     # recursive case
     if reports:
         leading_space = leading_space + INDENT
         for report in reports:
-            list_reports(report, leading_space)
+            list_reports(report, leading_space=leading_space)
     # base case is to do nothing
 
 def reports_sort_key(row):
@@ -48,7 +48,7 @@ def get_reports(supervisor_row):
     return l
 
 if __name__ == "__main__":
-    list_reports(ROWS[0], INDENT)
+    list_reports(ROWS[0])
 
 # print_json(row)
 # {

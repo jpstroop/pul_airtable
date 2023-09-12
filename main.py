@@ -196,7 +196,7 @@ if __name__ == '__main__':
     # This is the Alpha Roster report from the Information Warehouse.
     report = './Alpha Roster.csv'
     app = App(report)
-    app.update_titles_from_absense_mgr_report('./Department Absence Manager Report - Library-en.csv')
+    # app.update_titles_from_absense_mgr_report('./Department Absence Manager Report - Library-en.csv')
     # app.run_checks()
     # app.sync_airtable_with_report(scrape_photo=False) # updates
     # app.employee_to_vacancy('940003133')
