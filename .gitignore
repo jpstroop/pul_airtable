@@ -1,5 +1,5 @@
 # Custom to application
-
+*.txt
 private.json
 *.csv
 .DS_Store
