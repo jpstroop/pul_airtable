@@ -60,7 +60,7 @@ class StaffAirtable():
             name = airtable_record['pul:Preferred Name']
             raise Exception(f'A record already exists for {emplid} ({name})', file=stderr)
         else:
-            self._main_table.create(data)
+            self._main_table.create(data, typecast=True)
             print(f'Added {emplid} ({data["pul:Preferred Name"]})')
 
     def update_record(self, record_id, data, log=False, debug=False):
@@ -73,7 +73,7 @@ class StaffAirtable():
             print(f'Updated position {position_no} with {emplid} ({data["pul:Preferred Name"]})')
         if debug:
             print('*'*80, file=stderr)
-        self._main_table.update(record_id, data)
+        self._main_table.update(record_id, data, typecast=True)
 
     def employee_to_vacancy(self, emplid):
         airtable_record = self.get_record_by_emplid(emplid)

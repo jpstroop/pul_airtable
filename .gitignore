@@ -1,4 +1,5 @@
 # Custom to application
+*.tsv
 *.txt
 private.json
 *.csv

@@ -1,6 +1,17 @@
 from datetime import date
 from sys import stderr
 
+DIVISION_LOOKUP = {
+    "Library-Deputy Univ Librarian":"Office of the Deputy Dean of Libraries",
+    "Lib-Data, Rsrch&Teaching Svcs":"Data, Research, and Teaching Services",
+    "Library-Special Collections":"Special and Distinctive Collections",
+    "Library - Main":"Office of the University Librarian",
+    "Lib-Collections & Access Svcs":"Collections and Access Services",
+    "Library-Finance&Acquistns Svcs":"Finance and Acquisitions Services",
+    "Lib-Research Coll & Presr Cons":"ReCAP"
+}
+    
+
 class ReportRow():
     '''A row from the Alpha Roster - Job and Personal Data - Point in Time Report
     '''
@@ -131,3 +142,8 @@ class ReportRow():
         if grade:
             grade = int(grade)
         return grade
+
+    @property
+    def division(self):
+        return DIVISION_LOOKUP[self._row['Department Name']]
+        

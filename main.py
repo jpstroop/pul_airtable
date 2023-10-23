@@ -43,6 +43,9 @@ app.employee_to_vacancy(\'{emplid}\')'''
                     exit(message)
                 self._airtable.update_record(airtable_record['id'], data, log=log)
             else: # this is a NEW record
+                if r.position_number == '[N/A - DoF]': # NOTE THIS IS UNTESTED
+                    message = f'''{r.preferred_name} is a new DoF Employee. Change this vacancy manually before proceeding'''
+                    exit(message)
                 data = self._map_report_row_to_airtable_fields(r, update=False, scrape_photo=True)
                 self._airtable.add_new_record(data)
                 sleep(THROTTLE_INTERVAL)
@@ -58,7 +61,11 @@ app.employee_to_vacancy(\'{emplid}\')'''
         report_emplids = self._staff_report.all_emplids
         missing_from_airtable = [i for i in report_emplids if i not in airtable_emplids]
         for emplid in missing_from_airtable:
-            name = self._staff_report.get_record_by_emplid(emplid)["Name"]
+            report_record = self._staff_report.get_record_by_emplid(emplid)
+            name = report_record["Name"]
+            if report_record.position_number == "[N/A - DoF]":
+                print(f'Employee {emplid} ({name}) is a new DoF Employee; the vacancy will need to be updated manually.', file=stderr)
+                exit(1)
             print(f'Employee {emplid} ({name}) is missing from Airtable; #sync_airtable_with_report() will add them.')
         
     def check_all_emplids_from_airtable_in_report(self):
@@ -107,7 +114,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
         try:
             data = {}
             data['University ID'] = report_row.emplid
-            data['Division'] = report_row['Department Name']
+            data['Division'] = report_row.division
             data['Admin. Group'] = report_row.admin_group
             data['pul:Search Status'] = 'Hired'
             data['University Phone'] = report_row.phone
@@ -198,14 +205,11 @@ if __name__ == '__main__':
     app = App(report)
     # app.update_titles_from_absense_mgr_report('./Department Absence Manager Report - Library-en.csv')
     # app.run_checks()
+    # app.employee_to_vacancy('010003044')
     # app.sync_airtable_with_report(scrape_photo=False) # updates
-    # app.employee_to_vacancy('940003133')
-    # app.employee_to_vacancy('961095725')
-    # app.employee_to_vacancy('010000719')
-    
     # print_json(app._airtable.get_record_by_emplid('920312674'))
 
-    # app.update_supervisor_hierarchy() # updates and prints warnings
+    app.update_supervisor_hierarchy() # updates and prints warnings
 
     # print_json(app.all_vacancies)
     # print_json(app._airtable.get_record_by_emplid('940007217'))

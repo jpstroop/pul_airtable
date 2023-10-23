@@ -6,26 +6,58 @@ from sys import stdout
 with open('./All Staff-Data for Org Chart.csv', 'r', encoding='utf-8-sig') as f:
     ROWS = [r for r in DictReader(f)]
 
-INDENT = '        '
+# TODO: get data directly from AirTable
+
+INDENT = '\t'
+
+
+DIVISION_LOOKUP = {
+    "Library-Deputy Univ Librarian":"Office of the Deputy Dean of Libraries",
+    "Lib-Data, Rsrch&Teaching Svcs":"Data, Research, and Teaching Services",
+    "Library-Special Collections":"Special and Distinctive Collections",
+    "Library - Main":"Office of the University Librarian",
+    "Lib-Collections & Access Svcs":"Collections and Access Services",
+    "Library-Finance&Acquistns Svcs":"Finance and Acquisitions Services",
+    "Lib-Research Coll & Presr Cons":"ReCAP"
+}
 
 def format_entry(row, leading_space=''):
-    entry = f"{leading_space}Name: {row['pul:Preferred Name']}"
-    entry += f"\n{leading_space}Title: {row['Title']}"
+    entry = f"{leading_space}{row['pul:Preferred Name']}"
+    entry += f"\n{leading_space}{row['Title']}"
     if row.get("pul:Team"):
-        entry += f"\n{leading_space}Team: {row['pul:Team']}"
+        entry += f"\n{leading_space}{row['pul:Team']}"
     elif row.get("pul:Unit"):
-        entry += f"\n{leading_space}Unit: {row['pul:Unit']}"
+        entry += f"\n{leading_space}{row['pul:Unit']}"
     elif row.get("pul:Department"):
-        entry += f"\n{leading_space}Department: {row['pul:Department']}"
+        entry += f"\n{leading_space}{row['pul:Department']}"
     else:
-        entry += f"\n{leading_space}Division: {row['Division']}"
+        entry += f"\n{leading_space}{DIVISION_LOOKUP[row['Division']]}"
     if row.get('pul:Ad hoc Groups'):
         entry += f"\n{leading_space}Groups: {', '.join(row['pul:Ad hoc Groups'].split(','))}"
     entry += f"\n{leading_space}Link: https://library.princeton.edu/staff/{row['netid']}"
     entry += "\n"
     return entry
 
-def list_reports(row, leading_space='', f=stdout):
+def format_entry_as_dict(row):
+    d = {
+        'name' : row['pul:Preferred Name'],
+        'title' : row['Title'], 
+        'link' : f"https://library.princeton.edu/staff/{row['netid']}"
+    }
+    if row.get("pul:Team"):
+        d['team'] = row['pul:Team']
+    elif row.get("pul:Unit"):
+        d['unit'] = row['pul:Unit']
+    elif row.get("pul:Department"):
+        d['department'] = row['pul:Department']
+    else:
+        d['division'] = DIVISION_LOOKUP[row['Division']]
+    if row.get('pul:Ad hoc Groups'):
+        d['groups'] = row['pul:Ad hoc Groups'].split(',')
+    return d
+        
+
+def list_reports(row, leading_space='', f=stdout, fmt='txt'):
     print(format_entry(row, leading_space=leading_space), file=stdout)
     reports = get_reports(row)
     # recursive case
@@ -33,6 +65,21 @@ def list_reports(row, leading_space='', f=stdout):
         leading_space = leading_space + INDENT
         for report in reports:
             list_reports(report, leading_space=leading_space)
+    # base case is to do nothing
+
+def list_reports_as_dict(row, d={}):
+    entry = format_entry_as_dict(row)
+    if len(d) == 0: # i.e. it's empty:
+        d = entry
+    else:
+        d['staff'].append(entry)
+    reports = get_reports(row)
+    # recursive case
+    if reports:
+        entry['staff'] = []
+        for report in reports:
+            list_reports_as_dict(report, entry)
+    return d
     # base case is to do nothing
 
 def reports_sort_key(row):
@@ -48,7 +95,9 @@ def get_reports(supervisor_row):
     return l
 
 if __name__ == "__main__":
-    list_reports(ROWS[0])
+    # list_reports(ROWS[0])# txt 
+    org_dict = list_reports_as_dict(ROWS[0])
+    print_json(org_dict)
 
 # print_json(row)
 # {
