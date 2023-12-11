@@ -1,7 +1,7 @@
 # Custom to application
 *.tsv
 *.txt
-private.json
+*.json
 *.csv
 .DS_Store
 *.xlsx

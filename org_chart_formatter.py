@@ -11,15 +11,6 @@ with open('./All Staff-Data for Org Chart.csv', 'r', encoding='utf-8-sig') as f:
 INDENT = '\t'
 
 
-DIVISION_LOOKUP = {
-    "Library-Deputy Univ Librarian":"Office of the Deputy Dean of Libraries",
-    "Lib-Data, Rsrch&Teaching Svcs":"Data, Research, and Teaching Services",
-    "Library-Special Collections":"Special and Distinctive Collections",
-    "Library - Main":"Office of the University Librarian",
-    "Lib-Collections & Access Svcs":"Collections and Access Services",
-    "Library-Finance&Acquistns Svcs":"Finance and Acquisitions Services",
-    "Lib-Research Coll & Presr Cons":"ReCAP"
-}
 
 def format_entry(row, leading_space=''):
     entry = f"{leading_space}{row['pul:Preferred Name']}"
@@ -31,7 +22,7 @@ def format_entry(row, leading_space=''):
     elif row.get("pul:Department"):
         entry += f"\n{leading_space}{row['pul:Department']}"
     else:
-        entry += f"\n{leading_space}{DIVISION_LOOKUP[row['Division']]}"
+        entry += f"\n{leading_space}{row['Division']}"
     if row.get('pul:Ad hoc Groups'):
         entry += f"\n{leading_space}Groups: {', '.join(row['pul:Ad hoc Groups'].split(','))}"
     entry += f"\n{leading_space}Link: https://library.princeton.edu/staff/{row['netid']}"
@@ -51,7 +42,7 @@ def format_entry_as_dict(row):
     elif row.get("pul:Department"):
         d['department'] = row['pul:Department']
     else:
-        d['division'] = DIVISION_LOOKUP[row['Division']]
+        d['division'] = row['Division']
     if row.get('pul:Ad hoc Groups'):
         d['groups'] = row['pul:Ad hoc Groups'].split(',')
     return d
@@ -96,7 +87,7 @@ def get_reports(supervisor_row):
 
 if __name__ == "__main__":
     # list_reports(ROWS[0])# txt 
-    org_dict = list_reports_as_dict(ROWS[0])
+    org_dict = list_reports_as_dict(ROWS[0]) # report needs AJ on the first line.
     print_json(org_dict)
 
 # print_json(row)

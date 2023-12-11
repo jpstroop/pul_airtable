@@ -21,7 +21,7 @@ class App():
     def all_vacancies(self):
         return self._airtable.all_vacancies
         
-    def sync_airtable_with_report(self, scrape_photo=False):
+    def sync_airtable_with_report(self, scrape_photo=False, title=False, pref_name=False):
         for r in self._staff_report.rows:
             airtable_record = self._airtable.get_record_by_emplid(r.emplid)
             log = False
@@ -32,7 +32,7 @@ class App():
                     log = True
                     airtable_record = self._airtable.get_record_by_position_no(position_no)
             if airtable_record:
-                data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo, update=True)
+                data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo, title=title, pref_name=pref_name)
                 # TODO: check that position number has not changed here. If it has, log to convert the person to a vacancy first, and exit.
                 if r.position_number != airtable_record['fields']['Position Number']:
                     emplid = r.emplid
@@ -46,7 +46,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
                 if r.position_number == '[N/A - DoF]': # NOTE THIS IS UNTESTED
                     message = f'''{r.preferred_name} is a new DoF Employee. Change this vacancy manually before proceeding'''
                     exit(message)
-                data = self._map_report_row_to_airtable_fields(r, update=False, scrape_photo=True)
+                data = self._map_report_row_to_airtable_fields(r, title=True, pref_name=True, scrape_photo=True)
                 self._airtable.add_new_record(data)
                 sleep(THROTTLE_INTERVAL)
 
@@ -106,7 +106,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
                 data = {'Funding Source(s)' : entry[1]}
                 self._airtable.update_record(airtable_record['id'], data)
 
-    def _map_report_row_to_airtable_fields(self, report_row, update=False, scrape_photo=False):
+    def _map_report_row_to_airtable_fields(self, report_row, pref_name=False, scrape_photo=False, title=False):
         # TODO: What would a better report have?
         # * Better Title
         # * Funding source
@@ -120,7 +120,10 @@ app.employee_to_vacancy(\'{emplid}\')'''
             data['University Phone'] = report_row.phone
             data['End Date'] = report_row.term_end
             data['Term/Perm/CA Track'] = report_row.term_perm
-            data['Title'] = report_row['Position - Job Title']
+            if title:
+                data['Title'] = report_row['Position - Job Title']
+            if pref_name:
+                data['pul:Preferred Name'] = report_row.preferred_name
             data['Email'] = report_row['E-Mail']
             data['Last Name'] = report_row.last_name
             data['First Name'] = report_row.first_name
@@ -133,8 +136,6 @@ app.employee_to_vacancy(\'{emplid}\')'''
             data['Address'] = report_row.address
             netid = report_row['Net ID']
             data['netid'] = netid
-            if update:
-                data['pul:Preferred Name'] = report_row.preferred_name
             if scrape_photo:
                 thumbnail = App._get_thumbnail_url(netid)
                 if thumbnail:
@@ -154,8 +155,8 @@ app.employee_to_vacancy(\'{emplid}\')'''
         self.check_all_position_numbers_from_airtable_in_report() # prints warnings
 
     def update_titles_from_absense_mgr_report(self, report_path):
-        with open(report_path, 'r', encoding='utf-8') as f: # Note encoding
-            rows = [r for r in DictReader(f)]
+        with open(report_path, 'r', encoding='utf-16') as f: # Note encoding
+            rows = [r for r in DictReader(f, delimiter='\t')]
         for r in rows:
             emplid = r['EID'].zfill(9)
             at_record = app._airtable.get_record_by_emplid(emplid)
@@ -201,15 +202,15 @@ def print_json(json_payload, f=stdout):
 
 if __name__ == '__main__':
     # This is the Alpha Roster report from the Information Warehouse.
-    report = './Alpha Roster.csv'
-    app = App(report)
+    app = App('./Alpha Roster.csv')
     # app.update_titles_from_absense_mgr_report('./Department Absence Manager Report - Library-en.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('010003044')
-    # app.sync_airtable_with_report(scrape_photo=False) # updates
+    # app.employee_to_vacancy('')
+
+    app.sync_airtable_with_report() # updates
     # print_json(app._airtable.get_record_by_emplid('920312674'))
 
-    app.update_supervisor_hierarchy() # updates and prints warnings
+    # app.update_supervisor_hierarchy() # updates and prints warnings
 
     # print_json(app.all_vacancies)
     # print_json(app._airtable.get_record_by_emplid('940007217'))
