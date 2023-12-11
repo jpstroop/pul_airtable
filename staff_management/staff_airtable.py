@@ -1,4 +1,4 @@
-from copy import deepcopy
+from datetime import date
 from pyairtable import Table
 from re import sub
 from sys import stderr
@@ -102,9 +102,10 @@ class StaffAirtable():
             "Title": airtable_fields["Title"],
             "Position Number": airtable_fields["Position Number"],
             "Division": airtable_fields["Division"],
-            "Supervisor": supervisor_fields['pul:Preferred Name']
+            "Supervisor": supervisor_fields['pul:Preferred Name'],
+            "Removed from AT" : date.today().isoformat()
         }
-        # self._main_table.update(airtable_record['id'], vacancy_data)
+        self._main_table.update(airtable_record['id'], vacancy_data)
         self._removal_history_table.create(removal_data, typecast=True)
         print(f'Created {vacancy_data["pul:Preferred Name"]} (was {airtable_fields["pul:Preferred Name"]})')
 
