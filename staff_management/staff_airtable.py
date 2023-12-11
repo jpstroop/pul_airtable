@@ -7,11 +7,12 @@ from time import sleep
 
 class StaffAirtable():
     
-    VACANT_IMAGE = 'https://github.com/jpstroop/pul_airtable/blob/main/vacant.png'
-    NO_PHOTO_IMAGE = 'https://github.com/jpstroop/pul_airtable/blob/main/no_photo.png'
+    VACANT_IMAGE = 'https://raw.githubusercontent.com/jpstroop/pul_airtable/main/vacant.png'
+    NO_PHOTO_IMAGE = 'https://raw.githubusercontent.com/jpstroop/pul_airtable/main/no_photo.png'
 
-    def __init__(self, personal_access_token, base_id, all_staff_table_id):
+    def __init__(self, personal_access_token, base_id, all_staff_table_id, history_table_id):
         self._main_table = Table(personal_access_token, base_id, all_staff_table_id)
+        self._removal_history_table = Table(personal_access_token, base_id, history_table_id)
         self._next_vacancy_number = None
 
     @property
@@ -54,6 +55,9 @@ class StaffAirtable():
     def get_record_by_position_no(self, pn):
         return self._main_table.first(formula=f'{{Position Number}} = "{pn}"')
 
+    def get_record_by_at_id(self, at_id):
+        return self._main_table.get(at_id)
+
     def add_new_record(self, data, by_pn=False):
         emplid = data['University ID']
         if self.get_record_by_emplid(emplid):
@@ -76,18 +80,13 @@ class StaffAirtable():
         self._main_table.update(record_id, data, typecast=True)
 
     def employee_to_vacancy(self, emplid):
-        airtable_record = self.get_record_by_emplid(emplid)
-        record_copy = deepcopy(airtable_record['fields'])
-        record_copy.pop('Manager/Supervisor', None)
-        record_copy.pop('Headshot', None)
-        record_copy.pop('Anniversary?', None)
-        # self._departed_table.create(record_copy, typecast=True) # might need a check if exists, but let's try w/o
-        data =  {
+        airtable_fields = self.get_record_by_emplid(emplid)['fields']
+        vacancy_data =  {
             "Email": None,
             "First Name": None,
             "Headshot": [ {'url': StaffAirtable.VACANT_IMAGE} ],
             "Last Name": None,
-            "Last Occupant": airtable_record["fields"]["pul:Preferred Name"],
+            "Last Occupant": airtable_fields["pul:Preferred Name"],
             "netid": None,
             "pul:Preferred Name": self.next_vacancy,
             "pul:Search Status": "Recently Vacated",
@@ -96,8 +95,18 @@ class StaffAirtable():
             "University Phone": None,
             "pul:FWA/Hours": None
         }
-        self._main_table.update(airtable_record['id'], data)
-        print(f'Created {data["pul:Preferred Name"]} (was {airtable_record["fields"]["pul:Preferred Name"]})')
+        supervisor_fields = self.get_record_by_at_id(airtable_fields['Manager/Supervisor'][0])['fields']
+        removal_data = {
+            "Name": airtable_fields["pul:Preferred Name"],
+            "netid": airtable_fields["netid"],
+            "Title": airtable_fields["Title"],
+            "Position Number": airtable_fields["Position Number"],
+            "Division": airtable_fields["Division"],
+            "Supervisor": supervisor_fields['pul:Preferred Name']
+        }
+        # self._main_table.update(airtable_record['id'], vacancy_data)
+        self._removal_history_table.create(removal_data, typecast=True)
+        print(f'Created {vacancy_data["pul:Preferred Name"]} (was {airtable_fields["pul:Preferred Name"]})')
 
     def update_supervisor_hierarchy(self, staff_report, throttle_interval):
         for empl, supr in staff_report.supervisor_hierarchy:

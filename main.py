@@ -14,7 +14,7 @@ THROTTLE_INTERVAL = 0.2
 class App():
     def __init__(self, src_data_path):
         conf = App._load_private()
-        self._airtable = StaffAirtable(conf["PAT"], conf["BASE_ID"], conf["ALL_STAFF_TABLE_ID"])
+        self._airtable = StaffAirtable(conf["PAT"], conf["BASE_ID"], conf["ALL_STAFF_TABLE_ID"], conf['REMOVAL_TABLE_ID'])
         self._staff_report = StaffReport(src_data_path)
 
     @property
@@ -33,6 +33,8 @@ class App():
                     airtable_record = self._airtable.get_record_by_position_no(position_no)
             if airtable_record:
                 data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo, title=title, pref_name=pref_name)
+                if airtable_record['fields']['pul:Preferred Name'].startswith('__VACANCY'):
+                    data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo, title=True, pref_name=True)
                 # TODO: check that position number has not changed here. If it has, log to convert the person to a vacancy first, and exit.
                 if r.position_number != airtable_record['fields']['Position Number']:
                     emplid = r.emplid
@@ -205,10 +207,10 @@ if __name__ == '__main__':
     app = App('./Alpha Roster.csv')
     # app.update_titles_from_absense_mgr_report('./Department Absence Manager Report - Library-en.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('')
+    app.employee_to_vacancy('960227146')
 
-    app.sync_airtable_with_report() # updates
-    # print_json(app._airtable.get_record_by_emplid('920312674'))
+    # app.sync_airtable_with_report() # updates
+    # print_json(app._airtable.get_record_by_emplid('960227146'))
 
     # app.update_supervisor_hierarchy() # updates and prints warnings
 
