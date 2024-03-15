@@ -72,6 +72,7 @@ class StaffAirtable():
             print('*'*80, file=stderr)
             print_json(data)
         if log:
+            #Note: this will fail when an existing person moves to DoF 
             position_no = data.get('Position Number')
             emplid = data['University ID']
             print(f'Updated position {position_no} with {emplid} ({data["pul:Preferred Name"]})')
@@ -80,7 +81,8 @@ class StaffAirtable():
         self._main_table.update(record_id, data, typecast=True)
 
     def employee_to_vacancy(self, emplid):
-        airtable_fields = self.get_record_by_emplid(emplid)['fields']
+        airtable_record = self.get_record_by_emplid(emplid)
+        airtable_fields = airtable_record['fields']
         vacancy_data =  {
             "Email": None,
             "First Name": None,

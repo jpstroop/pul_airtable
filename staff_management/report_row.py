@@ -8,7 +8,8 @@ DIVISION_LOOKUP = {
     "Library - Main":"Office of the University Librarian",
     "Lib-Collections & Access Svcs":"Collections and Access Services",
     "Library-Finance&Acquistns Svcs":"Finance and Acquisitions Services",
-    "Lib-Research Coll & Presr Cons":"ReCAP"
+    "Lib-Research Coll & Presr Cons":"ReCAP",
+    "Center for Digital Humanities":"Center for Digital Humanities"
 }
     
 
@@ -98,6 +99,14 @@ class ReportRow():
             return "Term"
 
     @property
+    def title(self):
+        pref_title = self._row.get('Admin Post Title')
+        if pref_title:
+            return pref_title
+        else:
+            return self._row.get('Position - Job Title')
+
+    @property
     def preferred_name(self):
         return f'{self.first_name} {self.last_name}'
 
@@ -110,6 +119,10 @@ class ReportRow():
     def last_name(self):
         field_data = self._row['Name']
         return field_data.split(',')[0]
+    
+    @property
+    def email(self):
+        return self._row['E-Mail Address - Campus']
 
     @property
     def time(self):
@@ -146,4 +159,11 @@ class ReportRow():
     @property
     def division(self):
         return DIVISION_LOOKUP[self._row['Department Name']]
+    
+    @property
+    def ps_department_name(self):
+        return self._row['Department Name']
         
+    @property
+    def ps_department_code(self):
+        return self._row['Dept']
