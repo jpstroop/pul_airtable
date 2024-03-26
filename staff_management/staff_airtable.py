@@ -14,6 +14,8 @@ class StaffAirtable():
         self._main_table = Table(personal_access_token, base_id, all_staff_table_id)
         self._removal_history_table = Table(personal_access_token, base_id, history_table_id)
         self._next_vacancy_number = None
+        # TODO: should we consider memoizing a copy of the whole table? Would 
+        # probably have to clear the copy after each write.
 
     @property
     def next_vacancy(self):
@@ -49,6 +51,43 @@ class StaffAirtable():
         '''
         pass
 
+    @property
+    def all_pula_managers(self):
+        fields = ("pul:Preferred Name", "University ID", "Manager/Supervisor", "Admin. Group", "Is Supervisor?")
+        data = self._main_table.all(fields=fields)
+        managers = list(filter(lambda r: "Is Supervisor?" in r["fields"], data))
+        return [m for m in managers if self.has_pula_staff(m, data=data)]
+
+    def get_managers_employees(self, manager_obj, data=None):
+        # TODO: do we need to break out a Manager object? And an Employee/Person object (superclass)?
+        # this could encapsulate the mapping between CSV reports and AT (constructors for both)
+        # and this could be an iterator (.employees)
+        '''Get employees of a manager. 
+        manager needs an object because because some mgrs are vacant (no emplid)
+        data is a list of all staff; a cached copy of the table.
+        '''
+        if data is None:
+            data = self._main_table.all()
+        mgr_id = manager_obj['id'] # working with AT ids because some mgrs are vacant
+        filt = lambda r: mgr_id in r["fields"].get("Manager/Supervisor", []) # account for Anne
+        employees = list(filter(filt, data))
+        return employees
+
+    def has_pula_staff(self, mgr_obj, data=None):
+        if data is None:
+            data = self._main_table.all()
+        employees = self.get_managers_employees(mgr_obj, data)
+        any_pula = any([e["fields"]["Admin. Group"] == "HR: PULA" for e in employees])
+        supervisors = filter(lambda e: "Is Supervisor?" in e["fields"], employees)
+        if any_pula:
+            return True
+        elif supervisors:
+            # note the recursion here
+            any_pula = any([self.has_pula_staff(s, data) for s in supervisors])
+            return any_pula
+        else:
+            return False
+
     def get_record_by_emplid(self, emplid):
         return self._main_table.first(formula=f'{{University ID}} = "{emplid}"')
 
@@ -61,7 +100,7 @@ class StaffAirtable():
     def add_new_record(self, data, by_pn=False):
         emplid = data['University ID']
         if self.get_record_by_emplid(emplid):
-            name = airtable_record['pul:Preferred Name']
+            name = data['pul:Preferred Name']
             raise Exception(f'A record already exists for {emplid} ({name})', file=stderr)
         else:
             self._main_table.create(data, typecast=True)
@@ -111,8 +150,24 @@ class StaffAirtable():
         self._removal_history_table.create(removal_data, typecast=True)
         print(f'Created {vacancy_data["pul:Preferred Name"]} (was {airtable_fields["pul:Preferred Name"]})')
 
+    def clear_supervisor_statuses(self):
+        # TODO
+        pass
+    
+    def update_pula_supervisor_statuses(self):
+        updates = []
+        for pm in self.all_pula_managers:
+            update = {
+                    "id" : pm['id'],
+                    "fields" : { "Is PULA Supervisor?" : True }
+                }
+            updates.append(update)
+        self._main_table.batch_update(updates)
+
     def update_supervisor_hierarchy(self, staff_report, throttle_interval):
         for empl, supr in staff_report.supervisor_hierarchy:
+            # TODO: this never clears supervisors that were marked by accident or who
+            # reverted to being individual contribs.
             try:
                 employee_record = self.get_record_by_emplid(empl) # TODO: Will error if not found
                 supervisor_record = self.get_record_by_emplid(supr)
@@ -137,7 +192,6 @@ class StaffAirtable():
                     print_json(supervisor_record, file=stderr)
                     print(f"Error with {empl_name}", file=stderr)
                     print(f"Original Error: {str(e)}", file=stderr)
-
             sleep(throttle_interval)
 
 # For debugging

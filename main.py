@@ -52,8 +52,14 @@ app.employee_to_vacancy(\'{emplid}\')'''
                 self._airtable.add_new_record(data)
                 sleep(THROTTLE_INTERVAL)
 
+    # TODO: the next two methods should be folded into one, and start by 
+    # clearing all manager statuses.
+    # Handle exceptions here and not below?
     def update_supervisor_hierarchy(self):
         self._airtable.update_supervisor_hierarchy(self._staff_report, THROTTLE_INTERVAL)
+
+    def update_pula_managers(self):
+        self._airtable.update_pula_supervisor_statuses()
 
     def employee_to_vacancy(self, emplid):
         return self._airtable.employee_to_vacancy(emplid)
@@ -99,14 +105,6 @@ app.employee_to_vacancy(\'{emplid}\')'''
             is_anne = pn == '00003305'
             if not is_vacancy and not is_anne:
                 print(f'Position Number {pn} ({name}) is missing from CSV Report; app.employee_to_vacancy(\'{emplid}\') will remove them.')
-
-    def update_funding_sources(self, report_path):
-        report = EarningsDetailReport(report_path)
-        for entry in report.items():
-            airtable_record = self._airtable.get_record_by_emplid(entry[0])
-            if airtable_record:
-                data = {'Funding Source(s)' : entry[1]}
-                self._airtable.update_record(airtable_record['id'], data)
 
     def _map_report_row_to_airtable_fields(self, report_row, pref_name=False, scrape_photo=False):
         try:
@@ -184,13 +182,14 @@ if __name__ == '__main__':
     # This is the Alpha Roster report from the Information Warehouse.
     app = App('./Alpha Roster.csv')
     # app.run_checks()
-
-    app.sync_airtable_with_report() # updates
+    # app.employee_to_vacancy('960718486')
+    # app.sync_airtable_with_report() # updates
     # app.update_supervisor_hierarchy() # updates and prints warnings
 
     # print_json(app._airtable.get_record_by_emplid('960227146'))
     # print_json(app.all_vacancies)
     # print_json(app._airtable.get_record_by_emplid('940007217'))
-    # app.update_funding_sources('./Earnings Detail by Person.csv')
+    app.update_pula_managers()
+
 
 
