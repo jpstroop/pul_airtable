@@ -23,6 +23,13 @@ class StaffReport():
         return [(r.emplid, r.super_emplid) for r in self.rows]
 
     @property
+    def grouped_supervisor_hierarchy(self):
+        d = {}
+        for employee, supervisor in self.supervisor_hierarchy:
+            d.setdefault(supervisor, []).append(employee)
+        return d
+
+    @property
     def all_emplids(self):
         return [row['Emplid'] for row in self.rows]
 

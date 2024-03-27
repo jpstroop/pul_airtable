@@ -33,6 +33,7 @@ class StaffAirtable():
         ids = self._main_table.all(fields=('University ID'))
         return [i['fields']['University ID'] for i in ids if i['fields'].get('University ID')]
 
+
     @property
     def all_position_numbers(self):
         nos = self._main_table.all(fields=('Position Number'))
@@ -50,6 +51,16 @@ class StaffAirtable():
         occupant for DoF jobs.
         '''
         pass
+
+    @property
+    def all_staff(self, fields=[]):
+        data = []
+        if fields:
+            data = self._main_table.all(fields=fields)
+        else:
+            data = data = self._main_table.all(fields=fields)
+        l = lambda r: not r['fields']['pul:Preferred Name'].startswith('__')
+        return list(filter(l, data))
 
     @property
     def all_pula_managers(self):
@@ -149,10 +160,6 @@ class StaffAirtable():
         self._main_table.update(airtable_record['id'], vacancy_data)
         self._removal_history_table.create(removal_data, typecast=True)
         print(f'Created {vacancy_data["pul:Preferred Name"]} (was {airtable_fields["pul:Preferred Name"]})')
-
-    def clear_supervisor_statuses(self):
-        # TODO
-        pass
     
     def update_pula_supervisor_statuses(self):
         updates = []
@@ -162,6 +169,19 @@ class StaffAirtable():
                     "fields" : { "Is PULA Supervisor?" : True }
                 }
             updates.append(update)
+        self._main_table.batch_update(updates)
+
+    def clear_supervisor_statuses(self):
+        updates = []
+        for emp in self.all_staff:
+            d = { 
+                "id" : emp['id'], 
+                "fields" : { 
+                    "Is Supervisor?" : False,
+                    "Is PULA Supervisor?": False
+                }
+            }
+            updates.append(d)
         self._main_table.batch_update(updates)
 
     def update_supervisor_hierarchy(self, staff_report, throttle_interval):
@@ -181,7 +201,7 @@ class StaffAirtable():
                     }
                 }]
                 self._main_table.batch_update(updates)
-            except Exception as e:
+            except Exception as e: # Change to just handle KeyErrors?
                 empl_name = employee_record['fields']['pul:Preferred Name']
                 if supervisor_record is None:
                     print(f"{empl_name} lacks a supervisor", file=stderr)
