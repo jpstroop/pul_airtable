@@ -8,6 +8,7 @@ DIVISION_LOOKUP = {
     "Library - Main":"Office of the University Librarian",
     "Lib-Collections & Access Svcs":"Collections and Access Services",
     "Library-Finance&Acquistns Svcs":"Finance and Acquisitions Services",
+    "Library-Research & Instr Svcs":"Library Research and Instruction Services",
     "Lib-Research Coll & Presr Cons":"ReCAP",
     "Center for Digital Humanities":"Center for Digital Humanities"
 }

@@ -52,16 +52,15 @@ app.employee_to_vacancy(\'{emplid}\')'''
                 self._airtable.add_new_record(data)
                 sleep(THROTTLE_INTERVAL)
 
-    # TODO: the next two methods should be folded into one, and start by 
-    # clearing all manager statuses.
-    # 1: Clear all
-    # 2. Update supervisor hierarchy (uses CSV report)
-    # 3. Update pula managers (uses Airtable)
-    # Handle exceptions here and not below?
     def update_supervisor_info(self):
+        # 1: Clear all
+        # 2. Update supervisor hierarchy (uses CSV report)
+        # 3. Update pula managers (uses Airtable)
+        # 4. Update DoF managers (uses Airtable)
         self._airtable.clear_supervisor_statuses()
         self._airtable.update_supervisor_hierarchy(self._staff_report, THROTTLE_INTERVAL)
         self._airtable.update_pula_supervisor_statuses()
+        self._airtable.update_dof_librarian_supervisor_statuses()
 
     def employee_to_vacancy(self, emplid):
         return self._airtable.employee_to_vacancy(emplid)
@@ -183,11 +182,11 @@ def print_json(json_payload, f=stdout):
 if __name__ == '__main__':
     # This is the Alpha Roster report from the Information Warehouse.
     app = App('./Alpha Roster.csv')
-    
     # app.run_checks()
-    # app.employee_to_vacancy('00000000')
+    # app.employee_to_vacancy('940009905')
+    # app.employee_to_vacancy('960175568')
     # app.sync_airtable_with_report() # updates
-    # app.update_supervisor_info() # take a long time
+    app.update_supervisor_info() # takes a long time
 
 
 

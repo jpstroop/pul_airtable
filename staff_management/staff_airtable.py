@@ -59,7 +59,7 @@ class StaffAirtable():
             data = self._main_table.all(fields=fields)
         else:
             data = data = self._main_table.all(fields=fields)
-        l = lambda r: not r['fields']['pul:Preferred Name'].startswith('__')
+        l = lambda r: not r['fields'].get('pul:Preferred Name', '').startswith('__')
         return list(filter(l, data))
 
     @property
@@ -68,6 +68,13 @@ class StaffAirtable():
         data = self._main_table.all(fields=fields)
         managers = list(filter(lambda r: "Is Supervisor?" in r["fields"], data))
         return [m for m in managers if self.has_pula_staff(m, data=data)]
+    
+    @property
+    def all_dof_librarian_managers(self):
+        fields = ("pul:Preferred Name", "University ID", "Manager/Supervisor", "Admin. Group", "Is Supervisor?")
+        data = self._main_table.all(fields=fields)
+        managers = list(filter(lambda r: "Is Supervisor?" in r["fields"], data))
+        return [m for m in managers if self.has_dof_librarian_staff(m, data=data)]
 
     def get_managers_employees(self, manager_obj, data=None):
         # TODO: do we need to break out a Manager object? And an Employee/Person object (superclass)?
@@ -88,7 +95,7 @@ class StaffAirtable():
         if data is None:
             data = self._main_table.all()
         employees = self.get_managers_employees(mgr_obj, data)
-        any_pula = any([e["fields"]["Admin. Group"] == "HR: PULA" for e in employees])
+        any_pula = any([e["fields"].get("Admin. Group") == "HR: PULA" for e in employees])
         supervisors = filter(lambda e: "Is Supervisor?" in e["fields"], employees)
         if any_pula:
             return True
@@ -96,6 +103,21 @@ class StaffAirtable():
             # note the recursion here
             any_pula = any([self.has_pula_staff(s, data) for s in supervisors])
             return any_pula
+        else:
+            return False
+        
+    def has_dof_librarian_staff(self, mgr_obj, data=None):
+        if data is None:
+            data = self._main_table.all()
+        employees = self.get_managers_employees(mgr_obj, data)
+        any_dof = any([e["fields"].get("Admin. Group") == "DoF: Librarian" for e in employees])
+        supervisors = filter(lambda e: "Is Supervisor?" in e["fields"], employees)
+        if any_dof:
+            return True
+        elif supervisors:
+            # note the recursion here
+            any_dof = any([self.has_dof_librarian_staff(s, data) for s in supervisors])
+            return any_dof
         else:
             return False
 
@@ -171,6 +193,16 @@ class StaffAirtable():
             updates.append(update)
         self._main_table.batch_update(updates)
 
+    def update_dof_librarian_supervisor_statuses(self):
+        updates = []
+        for pm in self.all_dof_librarian_managers:
+            update = {
+                    "id" : pm['id'],
+                    "fields" : { "Is DoF Librarian Supervisor?" : True }
+                }
+            updates.append(update)
+        self._main_table.batch_update(updates)
+
     def clear_supervisor_statuses(self):
         updates = []
         for emp in self.all_staff:
@@ -186,8 +218,6 @@ class StaffAirtable():
 
     def update_supervisor_hierarchy(self, staff_report, throttle_interval):
         for empl, supr in staff_report.supervisor_hierarchy:
-            # TODO: this never clears supervisors that were marked by accident or who
-            # reverted to being individual contribs.
             try:
                 employee_record = self.get_record_by_emplid(empl) # TODO: Will error if not found
                 supervisor_record = self.get_record_by_emplid(supr)
