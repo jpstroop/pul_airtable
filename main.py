@@ -21,7 +21,7 @@ class App():
     def all_vacancies(self):
         return self._airtable.all_vacancies
         
-    def sync_airtable_with_report(self, scrape_photo=False, pref_name=False):
+    def sync_airtable_with_report(self):
         for r in self._staff_report.rows:
             airtable_record = self._airtable.get_record_by_emplid(r.emplid)
             log = False
@@ -32,9 +32,9 @@ class App():
                     log = True
                     airtable_record = self._airtable.get_record_by_position_no(position_no)
             if airtable_record:
-                data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo, pref_name=pref_name)
+                data = self._map_report_row_to_airtable_fields(r)
                 if airtable_record['fields']['pul:Preferred Name'].startswith('__VACANCY'):
-                    data = self._map_report_row_to_airtable_fields(r, scrape_photo=scrape_photo, pref_name=True)
+                    data = self._map_report_row_to_airtable_fields(r)
                 # TODO: check that position number has not changed here. If it has, log to convert the person to a vacancy first, and exit.
                 if r.position_number != airtable_record['fields']['Position Number']:
                     emplid = r.emplid
@@ -45,10 +45,10 @@ app.employee_to_vacancy(\'{emplid}\')'''
                     exit(message)
                 self._airtable.update_record(airtable_record['id'], data, log=log)
             else: # this is a NEW record
-                if r.position_number == '[N/A - DoF]': # NOTE THIS IS UNTESTED
+                if r.position_number == '[N/A - DoF]':
                     message = f'''{r.preferred_name} is a new DoF Employee. Change this vacancy manually before proceeding'''
                     exit(message)
-                data = self._map_report_row_to_airtable_fields(r, pref_name=True, scrape_photo=True)
+                data = self._map_report_row_to_airtable_fields(r)
                 self._airtable.add_new_record(data)
                 sleep(THROTTLE_INTERVAL)
 
@@ -107,7 +107,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
             if not is_vacancy and not is_anne:
                 print(f'Position Number {pn} ({name}) is missing from CSV Report; app.employee_to_vacancy(\'{emplid}\') will remove them.')
 
-    def _map_report_row_to_airtable_fields(self, report_row, pref_name=False, scrape_photo=False):
+    def _map_report_row_to_airtable_fields(self, report_row):
         try:
             data = {}
             data['University ID'] = report_row.emplid
@@ -118,8 +118,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
             data['End Date'] = report_row.term_end
             data['Term/Perm/CA Track'] = report_row.term_perm
             data['Title'] = report_row.title
-            if pref_name:
-                data['pul:Preferred Name'] = report_row.preferred_name
+            data['pul:Preferred Name'] = report_row.preferred_name
             data['Email'] = report_row.email
             data['Last Name'] = report_row.last_name
             data['First Name'] = report_row.first_name
@@ -134,13 +133,7 @@ app.employee_to_vacancy(\'{emplid}\')'''
             data['netid'] = netid
             data['PS Department Name'] = report_row.ps_department_name
             data['PS Department Code'] = report_row.ps_department_code
-            if scrape_photo:
-                thumbnail = App._get_thumbnail_url(netid)
-                if thumbnail:
-                    data['Headshot'] = [ {'url': thumbnail} ]
-                else:
-                    data['Headshot'] = [ {'url': StaffAirtable.NO_PHOTO_IMAGE} ]
-            return data
+
         except Exception as e:
             print(f'Error with emplid {report_row.emplid}', file=stderr)
             raise e
@@ -157,23 +150,6 @@ app.employee_to_vacancy(\'{emplid}\')'''
         with open(pth, 'r') as f:
             return load(f)
 
-    @staticmethod
-    def _get_thumbnail_url(netid):
-        try:
-            page_url = f'https://library.princeton.edu/staff/{netid}'
-            response = get(page_url)
-            response.raise_for_status()
-            html = BeautifulSoup(response.content, 'html.parser')
-            image_url = html.select('div.user--picture')[0].find_all('img')[0]['src'].split('?')[0]
-            sleep(THROTTLE_INTERVAL)
-            if image_url.endswith('.svg'):
-                return None
-            else:
-                return image_url
-        except Exception as e:
-            print(str(e), file=stderr)
-
-
 def print_json(json_payload, f=stdout):
     # For debugging
     from json import dumps
@@ -183,10 +159,9 @@ if __name__ == '__main__':
     # This is the Alpha Roster report from the Information Warehouse.
     app = App('./Alpha Roster.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('940009905')
-    # app.employee_to_vacancy('960175568')
-    # app.sync_airtable_with_report() # updates
+    # app.employee_to_vacancy('920228584')
+    # app.employee_to_vacancy('010011086')
+    # app.employee_to_vacancy('940011110')
+    app.sync_airtable_with_report() # updates
     app.update_supervisor_info() # takes a long time
-
-
 

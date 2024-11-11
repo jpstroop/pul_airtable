@@ -2,15 +2,16 @@ from datetime import date
 from sys import stderr
 
 DIVISION_LOOKUP = {
-    "Library-Deputy Univ Librarian":"Office of the Deputy Dean of Libraries",
-    "Lib-Data, Rsrch&Teaching Svcs":"Data, Research, and Teaching Services",
-    "Library-Special Collections":"Special and Distinctive Collections",
-    "Library - Main":"Office of the University Librarian",
+    "Center for Digital Humanities":"Center for Digital Humanities",
     "Lib-Collections & Access Svcs":"Collections and Access Services",
-    "Library-Finance&Acquistns Svcs":"Finance and Acquisitions Services",
-    "Library-Research & Instr Svcs":"Library Research and Instruction Services",
+    "Lib-Data, Rsrch&Teaching Svcs":"Data, Research, and Teaching Services",
     "Lib-Research Coll & Presr Cons":"ReCAP",
-    "Center for Digital Humanities":"Center for Digital Humanities"
+    "Lib-Rsrch,Data &Open Schlrshp":"Research, Data, and Opoen Scholaship",
+    "Library - Main":"Office of the University Librarian",
+    "Library-Deputy Univ Librarian":"Office of the Deputy Dean of Libraries",
+    "Library-Finance&Acquistns Svcs":"Finance and Acquisitions Services",
+    "Library-Special Collections":"Special and Distinctive Collections",
+    # "Library-Research & Instr Svcs":"Library Research and Instruction Services",
 }
     
 
@@ -113,13 +114,11 @@ class ReportRow():
 
     @property
     def first_name(self):
-        field_data = self._row['Name']
-        return field_data.split(',')[1]
+        return self._row['Preferred Else Primary First Name']
 
     @property
     def last_name(self):
-        field_data = self._row['Name']
-        return field_data.split(',')[0]
+        return self._row['Preferred Else Primary Last Name']
     
     @property
     def email(self):
