@@ -156,7 +156,7 @@ def print_json(json_payload, f=stdout):
     print(dumps(json_payload, ensure_ascii=False, indent=2), file=f)
 
 if __name__ == '__main__':
-    # This is the Alpha Roster report from the Information Warehouse.
+    # This is the Library Alpha Roster report from the Information Warehouse.
     app = App('./Alpha Roster.csv')
     # app.run_checks()
     # app.employee_to_vacancy('920228584')
@@ -164,4 +164,4 @@ if __name__ == '__main__':
     # app.employee_to_vacancy('940011110')
     app.sync_airtable_with_report() # updates
     app.update_supervisor_info() # takes a long time
-
+    
