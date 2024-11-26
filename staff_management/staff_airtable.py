@@ -1,5 +1,5 @@
 from datetime import date
-from pyairtable import Table
+from pyairtable import Api
 from re import sub
 from sys import stderr
 from sys import stdout
@@ -11,11 +11,10 @@ class StaffAirtable():
     NO_PHOTO_IMAGE = 'https://raw.githubusercontent.com/jpstroop/pul_airtable/main/no_photo.png'
 
     def __init__(self, personal_access_token, base_id, all_staff_table_id, history_table_id):
-        self._main_table = Table(personal_access_token, base_id, all_staff_table_id)
-        self._removal_history_table = Table(personal_access_token, base_id, history_table_id)
+        api = Api(personal_access_token)
+        self._main_table = api.table(base_id, all_staff_table_id)
+        self._removal_history_table = api.table(base_id, history_table_id)
         self._next_vacancy_number = None
-        # TODO: should we consider memoizing a copy of the whole table? Would 
-        # probably have to clear the copy after each write.
 
     @property
     def next_vacancy(self):
@@ -167,7 +166,8 @@ class StaffAirtable():
             "Start Date": None,
             "University ID": None,
             "University Phone": None,
-            "pul:FWA/Hours": None
+            "pul:FWA/Hours": None,
+            "pul:Anticipated End Date": None
         }
         supervisor_fields = self.get_record_by_at_id(airtable_fields['Manager/Supervisor'][0])['fields']
         removal_data = {

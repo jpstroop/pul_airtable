@@ -1,7 +1,5 @@
-from bs4 import BeautifulSoup
 from csv import DictReader
 from json import load
-from requests import get
 from staff_management.earnings_detail_report import EarningsDetailReport
 from staff_management.staff_airtable import StaffAirtable
 from staff_management.staff_report import StaffReport
@@ -137,6 +135,8 @@ app.employee_to_vacancy(\'{emplid}\')'''
         except Exception as e:
             print(f'Error with emplid {report_row.emplid}', file=stderr)
             raise e
+        
+        return data
 
     def run_checks(self):
         #TODO: this could prompt to add/remove people as it goes...
@@ -159,9 +159,7 @@ if __name__ == '__main__':
     # This is the Library Alpha Roster report from the Information Warehouse.
     app = App('./Alpha Roster.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('920228584')
-    # app.employee_to_vacancy('010011086')
-    # app.employee_to_vacancy('940011110')
-    app.sync_airtable_with_report() # updates
+    # app.employee_to_vacancy('940007217')
+    # app.sync_airtable_with_report() # updates
     app.update_supervisor_info() # takes a long time
     
