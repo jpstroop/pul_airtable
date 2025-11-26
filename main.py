@@ -1,66 +1,263 @@
-from csv import DictReader
+# Standard library imports
 from json import load
-from staff_management.earnings_detail_report import EarningsDetailReport
-from staff_management.staff_airtable import StaffAirtable
-from staff_management.staff_report import StaffReport
+from sys import exit as sys_exit
 from sys import stderr
 from sys import stdout
 from time import sleep
+from typing import List
+from typing import Optional
+from typing import TextIO
+from typing import cast
 
-THROTTLE_INTERVAL = 0.2
+# Third party imports
+from click import echo
+from click import style as click_style
+from pyairtable.api.types import Fields
 
-class App():
-    def __init__(self, src_data_path):
-        conf = App._load_private()
-        self._airtable = StaffAirtable(conf["PAT"], conf["BASE_ID"], conf["ALL_STAFF_TABLE_ID"], conf['REMOVAL_TABLE_ID'])
+# Local imports
+from staff_management.field_mapper import FieldMapper
+from staff_management.record_matcher import RecordMatcher
+from staff_management.report_row import ReportRow
+from staff_management.staff_airtable import AirtableRecord
+from staff_management.staff_airtable import JSONDict
+from staff_management.staff_airtable import JSONType
+from staff_management.staff_airtable import StaffAirtable
+from staff_management.staff_report import StaffReport
+from staff_management.sync_prompts import MissingFromCSVAction
+from staff_management.sync_prompts import SyncPrompts
+from staff_management.sync_validator import SyncValidator
+
+THROTTLE_INTERVAL: float = 0.2
+
+
+class App:
+    _airtable: StaffAirtable
+    _staff_report: StaffReport
+    _record_matcher: RecordMatcher
+    _sync_validator: SyncValidator
+
+    def __init__(self, src_data_path: str, config: Optional[JSONDict] = None) -> None:
+        if config is None:
+            # Legacy: load from private.json (for backward compatibility)
+            config = App._load_private()
+
+        self._airtable = StaffAirtable(
+            str(config["PAT"]),
+            str(config["BASE_ID"]),
+            str(config["ALL_STAFF_TABLE_ID"]),
+            str(config["REMOVAL_TABLE_ID"]),
+        )
         self._staff_report = StaffReport(src_data_path)
+        self._record_matcher = RecordMatcher(self._airtable)
+        self._sync_validator = SyncValidator(self._airtable, self._staff_report)
+
+    def _handle_position_number_change(
+        self, report_row: ReportRow, airtable_record: AirtableRecord, data: Fields
+    ) -> tuple[bool, bool]:
+        """Handle position number changes with user prompts.
+
+        Returns:
+            Tuple of (should_continue, already_updated)
+            - (True, False): No change, continue with normal update
+            - (True, True): Handled and updated, skip normal update
+            - (False, _): Abort sync
+        """
+        fields = FieldMapper.extract_fields(airtable_record)
+
+        if report_row.position_number == fields["Position Number"]:
+            return True, False  # No change, continue with normal update
+
+        # Check if this is just correcting [N/A] to proper format ([N/A - DoF] or [N/A - Casual])
+        old_pos = fields["Position Number"]
+        new_pos = report_row.position_number
+        if old_pos == "[N/A]" and new_pos in ("[N/A - DoF]", "[N/A - Casual]"):
+            # Just a correction - update without prompting
+            data["Position Number"] = new_pos
+            self._airtable.update_record(str(airtable_record["id"]), data, log=True)
+            return True, True  # Continue, but already updated
+
+        # Real position number change - requires manual intervention
+        emplid = report_row.emplid
+        preferred_name = fields["pul:Preferred Name"]
+        SyncPrompts.show_position_change_error(
+            preferred_name=str(preferred_name),
+            emplid=emplid,
+            old_position=str(fields["Position Number"]),
+            new_position=report_row.position_number,
+        )
+        sys_exit(1)
+        return False, False  # unreachable but type-safe
+
+    def _handle_new_staff_member(self, report_row: ReportRow) -> None:
+        """Handle new staff members not found in Airtable.
+
+        Different handling for DoF staff vs regular staff:
+        - DoF staff: prompt user (new position or vacancy replacement)
+        - Casual staff: skip
+        - Staff on leave ([N/A]): note but skip
+        - Regular staff with position numbers: add automatically
+        """
+        if report_row.is_dof_staff:
+            # Interactive prompt for new DoF staff
+            is_new_position = SyncPrompts.prompt_new_dof_staff(report_row)
+            if not is_new_position:
+                return  # User wants to handle manually
+
+            # It's a new position, create it
+            data = FieldMapper.map_row_to_fields(report_row)
+            self._airtable.add_new_record(data)
+            sleep(THROTTLE_INTERVAL)
+
+        elif report_row.position_number == "[N/A - Casual]":
+            # Casual staff without matches are skipped
+            SyncPrompts.show_casual_staff_skipped(report_row.preferred_name, report_row.emplid)
+
+        elif report_row.position_number == "[N/A]":
+            # Staff on leave without position numbers
+            SyncPrompts.show_staff_on_leave(report_row.last_name)
+
+        else:
+            # Regular staff with position numbers - check if position exists
+            position_no = report_row.position_number
+            existing_position = self._airtable.get_record_by_position_no(position_no)
+
+            should_add = SyncPrompts.prompt_new_regular_staff(report_row, existing_position)
+            if should_add:
+                data = FieldMapper.map_row_to_fields(report_row)
+                self._airtable.add_new_record(data)
+                sleep(THROTTLE_INTERVAL)
+
+    def _handle_missing_from_csv(self, emplid: str) -> bool:
+        """Handle Airtable records not found in CSV report.
+
+        Prompts user with 5 options:
+        1. Remove and create vacancy (employee left)
+        2. Remove without creating vacancy (casual/eliminated position)
+        3. Mark as on leave
+        4. Ignore and continue (skip)
+        5. Abort sync
+
+        Returns:
+            True if sync should continue, False if sync should abort
+        """
+        record = self._airtable.get_record_by_emplid(emplid)
+        if record is None:
+            return True  # Continue if record not found
+
+        fields = FieldMapper.extract_fields(record)
+        name = str(fields.get("pul:Preferred Name", "Unknown"))
+        position = str(fields.get("Position Number", ""))
+
+        # Skip Dean position (special case - should remain in Airtable)
+        if position == "00003305":
+            return True
+
+        # Prompt user for action
+        on_leave_status = bool(fields.get("pul:On Leave?", False))
+        action = SyncPrompts.prompt_missing_from_csv(
+            name=name,
+            emplid=emplid,
+            title=str(fields.get("Title", "")),
+            netid=str(fields.get("netid", "")),
+            position=str(fields.get("Position Number", "")),
+            on_leave=on_leave_status,
+        )
+
+        # Handle user's choice
+        if action == MissingFromCSVAction.CONVERT_TO_VACANCY:
+            SyncPrompts.show_converting_to_vacancy(name)
+            self._airtable.employee_to_vacancy(emplid)
+            sleep(THROTTLE_INTERVAL)
+            return True
+        elif action == MissingFromCSVAction.DELETE_WITHOUT_VACANCY:
+            SyncPrompts.show_deleting_record(name)
+            self._airtable.delete_record(str(record["id"]))
+            sleep(THROTTLE_INTERVAL)
+            return True
+        elif action == MissingFromCSVAction.MARK_ON_LEAVE:
+            SyncPrompts.show_marking_on_leave(name)
+            leave_data = cast(Fields, {"pul:On Leave?": True})
+            self._airtable.update_record(str(record["id"]), leave_data)
+            sleep(THROTTLE_INTERVAL)
+            return True
+        elif action == MissingFromCSVAction.SKIP:
+            SyncPrompts.show_skipping_manual_handling(name)
+            return True
+        elif action == MissingFromCSVAction.ABORT:
+            SyncPrompts.show_sync_aborted()
+            return False
+        else:
+            # Shouldn't reach here, but handle gracefully
+            SyncPrompts.show_skipping_manual_handling(name)
+            return True
 
     @property
-    def all_vacancies(self):
+    def all_vacancies(self) -> List[AirtableRecord]:
         return self._airtable.all_vacancies
-        
-    def sync_airtable_with_report(self):
-        for r in self._staff_report.rows:
-            
-            airtable_record = self._airtable.get_record_by_emplid(r.emplid)
-            log = False
-            if not airtable_record:
-                # If there's a vacancy w/ this position number, use that vacancy
-                position_no = r.position_number 
-                if position_no:
-                    log = True
-                    if position_no != "[N/A]":
-                        airtable_record = self._airtable.get_record_by_position_no(position_no)
-            if airtable_record:
-                data = self._map_report_row_to_airtable_fields(r)
-                if airtable_record['fields']['pul:Preferred Name'].startswith('__VACANCY'):
-                    data = self._map_report_row_to_airtable_fields(r)
-                # TODO: check that position number has not changed here. If it has, log to convert the person to a vacancy first, and exit.
-                if r.position_number != airtable_record['fields']['Position Number']:
-                    emplid = r.emplid
-                    preferred_name = airtable_record['fields']['pul:Preferred Name']
-                    message = f'''Position Number for {preferred_name} (emplid {emplid}) has changed.
-They may be on leave, in which case you should change their position number to "[N/A]" in Airtable. 
-Otherwise, convert the employee in their current position to a vacancy first with app.employee_to_vacancy(\'{emplid}\')'''
-                    exit(message)
-                if airtable_record['fields']['Position Number'] != "[N/A]":
-                    self._airtable.update_record(airtable_record['id'], data, log=log)
-                else:
-                    print(f"FYI: {r.last_name} position number is [N/A]")
-            else: # this is a NEW record
-                if r.position_number == '[N/A - DoF]':
-                    message = f'''{r.preferred_name} is a new DoF Employee. Change this vacancy manually before proceeding'''
-                    exit(message)
-                elif r.position_number == '[N/A - Casual]':
-                    pass
-                elif r.position_number == '[N/A]':
-                    print(f"FYI: {r.last_name} position number is [N/A]")
-                else:
-                    data = self._map_report_row_to_airtable_fields(r)
-                    self._airtable.add_new_record(data)
-                    sleep(THROTTLE_INTERVAL)
 
-    def update_supervisor_info(self):
+    def sync_airtable_with_report(self) -> None:
+        """Sync CSV report data to Airtable.
+
+        Matching strategy:
+        - Try emplid first (works for everyone)
+        - For DoF staff: fall back to name matching (no position numbers)
+        - For regular staff: fall back to position number matching
+
+        CLI decision points (Phase 5):
+        - DoF staff with no emplid or name match: new position or replacing vacancy?
+        - Position number changed: person on leave or changed positions?
+        - Record missing from CSV: person left or on leave?
+        """
+        for r in self._staff_report.rows:
+            airtable_record, log = self._record_matcher.find_match(r)
+
+            if airtable_record:
+                fields = FieldMapper.extract_fields(airtable_record)
+                data = FieldMapper.map_row_to_fields(r)
+                if str(fields["pul:Preferred Name"]).startswith("__VACANCY"):
+                    data = FieldMapper.map_row_to_fields(r)
+
+                # Check for position number changes
+                should_continue, already_updated = self._handle_position_number_change(r, airtable_record, data)
+                if not should_continue:
+                    return  # Abort sync
+
+                # Only update if not already handled by position number change logic
+                if not already_updated:
+                    # Check if on-leave status changed and log it
+                    old_leave_status = fields.get("pul:On Leave?", False)
+                    new_leave_status = data.get("pul:On Leave?", False)
+                    if old_leave_status != new_leave_status:
+                        if new_leave_status:
+                            echo(  # pragma: no cover
+                                click_style(f"  → {r.preferred_name} is now on leave (Status: {r.status})", fg="cyan")
+                            )
+                        else:
+                            echo(  # pragma: no cover
+                                click_style(f"  → {r.preferred_name} has returned from leave", fg="green")
+                            )
+
+                    if fields["Position Number"] != "[N/A]":
+                        self._airtable.update_record(str(airtable_record["id"]), data, log=log)
+                    else:
+                        echo(click_style(f"FYI: {r.last_name} position number is [N/A]", fg="cyan"))  # pragma: no cover
+            else:
+                # No matching record found - this is a NEW person/position
+                self._handle_new_staff_member(r)
+
+        # Phase 2: Check for Airtable records missing from CSV
+        echo(  # pragma: no cover
+            click_style("\nChecking for Airtable records not in CSV report...", fg="cyan", bold=True)
+        )
+        missing_from_report = self._sync_validator.check_emplids_missing_in_csv()
+
+        for emplid in missing_from_report:
+            if not self._handle_missing_from_csv(emplid):
+                sys_exit(0)  # User chose to abort
+
+        echo(click_style("\n✓ Sync complete", fg="green", bold=True))  # pragma: no cover
+
+    def update_supervisor_info(self) -> None:
         # 1: Clear all
         # 2. Update supervisor hierarchy (uses CSV report)
         # 3. Update pula managers (uses Airtable)
@@ -70,108 +267,23 @@ Otherwise, convert the employee in their current position to a vacancy first wit
         self._airtable.update_pula_supervisor_statuses()
         self._airtable.update_dof_librarian_supervisor_statuses()
 
-    def employee_to_vacancy(self, emplid):
-        return self._airtable.employee_to_vacancy(emplid)
+    def employee_to_vacancy(self, emplid: str) -> None:
+        self._airtable.employee_to_vacancy(emplid)
 
-    def check_all_emplids_from_report_in_airtable(self):
-        airtable_emplids = self._airtable.all_emplids
-        report_emplids = self._staff_report.all_emplids
-        missing_from_airtable = [i for i in report_emplids if i not in airtable_emplids]
-        for emplid in missing_from_airtable:
-            report_record = self._staff_report.get_record_by_emplid(emplid)
-            name = report_record["Name"]
-            if report_record.position_number == "[N/A - DoF]":
-                print(f'Employee {emplid} ({name}) is a new DoF Employee; the vacancy will need to be updated manually.', file=stderr)
-                exit(1)
-            print(f'Employee {emplid} ({name}) is missing from Airtable; #sync_airtable_with_report() will add them.')
-        
-    def check_all_emplids_from_airtable_in_report(self):
-        airtable_emplids = self._airtable.all_emplids
-        report_emplids = self._staff_report.all_emplids
-        missing_from_report = [i for i in airtable_emplids if i not in report_emplids]
-        for emplid in missing_from_report:
-            name = self._airtable.get_record_by_emplid(emplid)['fields'].get('pul:Preferred Name')
-            if name != "Anne Jarvis":
-                print(f'Employee {emplid} ({name}) is missing from CSV Report; app.employee_to_vacancy(\'{emplid}\') will remove them.')
-
-    def check_all_position_numbers_from_report_in_airtable(self):
-        airtable_pns = self._airtable.all_position_numbers
-        report_pns = self._staff_report.all_position_numbers
-        missing_from_airtable = [pn for pn in report_pns if pn not in airtable_pns]
-        for pn in missing_from_airtable:
-            name = self._staff_report.get_record_by_position_no(pn)["Name"]
-            print(f'Position Number {pn} ({name}) is missing from Airtable.')
-
-    def check_all_position_numbers_from_airtable_in_report(self):
-        airtable_pns = self._airtable.all_position_numbers
-        report_pns = self._staff_report.all_position_numbers
-        missing_from_report = [pn for pn in airtable_pns if pn not in report_pns]
-        for pn in missing_from_report:
-            at_record = self._airtable.get_record_by_position_no(pn)
-            name = at_record['fields'].get('pul:Preferred Name')
-            emplid = at_record['fields'].get('University ID')
-            is_vacancy = name.startswith('__VACANCY')
-            is_anne = pn == '00003305'
-            if not is_vacancy and not is_anne:
-                print(f'Position Number {pn} ({name}) is missing from CSV Report; app.employee_to_vacancy(\'{emplid}\') will remove them.')
-
-    def _map_report_row_to_airtable_fields(self, report_row):
-        try:
-            data = {}
-            data['University ID'] = report_row.emplid
-            data['Division'] = report_row.division
-            data['Admin. Group'] = report_row.admin_group
-            data['pul:Search Status'] = 'Hired'
-            data['University Phone'] = report_row.phone
-            data['End Date'] = report_row.term_end
-            data['Term/Perm/CA Track'] = report_row.term_perm
-            data['Title'] = report_row.title
-            data['pul:Preferred Name'] = report_row.preferred_name
-            data['Email'] = report_row.email
-            data['Last Name'] = report_row.last_name
-            data['First Name'] = report_row.first_name
-            data['Time'] = report_row.time
-            data['Start Date'] = report_row.start_date
-            data['Rehire Date'] = report_row.rehire_date
-            data['Grade'] = report_row.grade
-            data['Sal. Plan'] = report_row.get('Sal Plan')
-            data['Position Number'] = report_row.position_number
-            data['Address'] = report_row.address
-            netid = report_row['Net ID']
-            data['netid'] = netid
-            data['PS Department Name'] = report_row.ps_department_name
-            data['PS Department Code'] = report_row.ps_department_code
-
-        except Exception as e:
-            print(f'Error with emplid {report_row.emplid}', file=stderr)
-            raise e
-        
-        return data
-
-    def run_checks(self):
-        #TODO: this could prompt to add/remove people as it goes...
-        self.check_all_emplids_from_report_in_airtable() # prints warnings
-        self.check_all_emplids_from_airtable_in_report() # prints warnings
-        self.check_all_position_numbers_from_report_in_airtable() # prints warnings
-        self.check_all_position_numbers_from_airtable_in_report() # prints warnings
+    def run_checks(self) -> None:
+        """Run validation checks and report discrepancies between CSV and Airtable."""
+        self._sync_validator.report_discrepancies()
 
     @staticmethod
-    def _load_private(pth='./private.json'):
-        with open(pth, 'r') as f:
-            return load(f)
+    def _load_private(pth: str = "./private.json") -> JSONDict:
+        with open(pth, "r") as f:
+            result = load(f)
+            return cast(JSONDict, result)
 
-def print_json(json_payload, f=stdout):
+
+def print_json(json_payload: JSONType, f: TextIO = stdout) -> None:
     # For debugging
+    # Standard library imports
     from json import dumps
+
     print(dumps(json_payload, ensure_ascii=False, indent=2), file=f)
-
-if __name__ == '__main__':
-    # This is the Library Alpha Roster report from the Information Warehouse.
-    app = App('./Alpha Roster.csv')
-    # app.run_checks()
-    # app.employee_to_vacancy('920266621')
-    # app.employee_to_vacancy('960393224')
-    app.sync_airtable_with_report() # updates
-    app.update_supervisor_info() # takes a long time
-
-    # print_json(app._map_report_row_to_airtable_fields(lc))
