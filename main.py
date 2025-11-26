@@ -21,6 +21,7 @@ class App():
         
     def sync_airtable_with_report(self):
         for r in self._staff_report.rows:
+            
             airtable_record = self._airtable.get_record_by_emplid(r.emplid)
             log = False
             if not airtable_record:
@@ -28,7 +29,8 @@ class App():
                 position_no = r.position_number 
                 if position_no:
                     log = True
-                    airtable_record = self._airtable.get_record_by_position_no(position_no)
+                    if position_no != "[N/A]":
+                        airtable_record = self._airtable.get_record_by_position_no(position_no)
             if airtable_record:
                 data = self._map_report_row_to_airtable_fields(r)
                 if airtable_record['fields']['pul:Preferred Name'].startswith('__VACANCY'):
@@ -38,17 +40,25 @@ class App():
                     emplid = r.emplid
                     preferred_name = airtable_record['fields']['pul:Preferred Name']
                     message = f'''Position Number for {preferred_name} (emplid {emplid}) has changed.
-Consider converting the employee in their current position to a vacancy first with
-app.employee_to_vacancy(\'{emplid}\')'''
+They may be on leave, in which case you should change their position number to "[N/A]" in Airtable. 
+Otherwise, convert the employee in their current position to a vacancy first with app.employee_to_vacancy(\'{emplid}\')'''
                     exit(message)
-                self._airtable.update_record(airtable_record['id'], data, log=log)
+                if airtable_record['fields']['Position Number'] != "[N/A]":
+                    self._airtable.update_record(airtable_record['id'], data, log=log)
+                else:
+                    print(f"FYI: {r.last_name} position number is [N/A]")
             else: # this is a NEW record
                 if r.position_number == '[N/A - DoF]':
                     message = f'''{r.preferred_name} is a new DoF Employee. Change this vacancy manually before proceeding'''
                     exit(message)
-                data = self._map_report_row_to_airtable_fields(r)
-                self._airtable.add_new_record(data)
-                sleep(THROTTLE_INTERVAL)
+                elif r.position_number == '[N/A - Casual]':
+                    pass
+                elif r.position_number == '[N/A]':
+                    print(f"FYI: {r.last_name} position number is [N/A]")
+                else:
+                    data = self._map_report_row_to_airtable_fields(r)
+                    self._airtable.add_new_record(data)
+                    sleep(THROTTLE_INTERVAL)
 
     def update_supervisor_info(self):
         # 1: Clear all
@@ -159,7 +169,9 @@ if __name__ == '__main__':
     # This is the Library Alpha Roster report from the Information Warehouse.
     app = App('./Alpha Roster.csv')
     # app.run_checks()
-    # app.employee_to_vacancy('940007217')
-    # app.sync_airtable_with_report() # updates
+    # app.employee_to_vacancy('920266621')
+    # app.employee_to_vacancy('960393224')
+    app.sync_airtable_with_report() # updates
     app.update_supervisor_info() # takes a long time
-    
+
+    # print_json(app._map_report_row_to_airtable_fields(lc))

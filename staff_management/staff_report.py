@@ -31,7 +31,7 @@ class StaffReport():
 
     @property
     def all_emplids(self):
-        return [row['Emplid'] for row in self.rows]
+        return [row['Emplid'].zfill(9) for row in self.rows]
 
     @property
     def all_position_numbers(self):

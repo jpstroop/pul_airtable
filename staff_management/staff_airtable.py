@@ -30,7 +30,7 @@ class StaffAirtable():
     @property
     def all_emplids(self):
         ids = self._main_table.all(fields=('University ID'))
-        return [i['fields']['University ID'] for i in ids if i['fields'].get('University ID')]
+        return [i['fields']['University ID'].zfill(9) for i in ids if i['fields'].get('University ID')]
 
 
     @property
@@ -163,7 +163,9 @@ class StaffAirtable():
             "netid": None,
             "pul:Preferred Name": self.next_vacancy,
             "pul:Search Status": "Recently Vacated",
+            "End Date": None,
             "Start Date": None,
+            "Rehire Date": None,
             "University ID": None,
             "University Phone": None,
             "pul:FWA/Hours": None,
@@ -232,7 +234,7 @@ class StaffAirtable():
                 }]
                 self._main_table.batch_update(updates)
             except Exception as e: # Change to just handle KeyErrors?
-                empl_name = employee_record['fields']['pul:Preferred Name']
+                empl_name = employee_record.get('fields', {}).get('pul:Preferred Name')
                 if supervisor_record is None:
                     print(f"{empl_name} lacks a supervisor", file=stderr)
                 else:

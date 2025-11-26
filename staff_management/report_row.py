@@ -82,7 +82,7 @@ class ReportRow():
 
     @property
     def term_end(self):
-        return self._row.get("Estimated Appt End Date")
+        return self._row.get("Estimated Appt End Date", "")
 
     @property
     def term_perm(self):
@@ -146,6 +146,8 @@ class ReportRow():
             return self._row['Position Number']
         elif self.term_perm == "Casual Hourly":
             return "[N/A - Casual]"
+        elif "Leave" in self.status:
+            return "[N/A]"
         else:
             return '[N/A - DoF]'
 
@@ -167,3 +169,7 @@ class ReportRow():
     @property
     def ps_department_code(self):
         return self._row['Dept']
+    
+    @property
+    def status(self):
+        return self._row['Status']
