@@ -7,7 +7,6 @@ from click import confirm
 from click import echo
 from click import prompt
 from click import style as click_style
-from pyairtable.api.types import Fields
 
 # Local imports
 from staff_management.field_mapper import FieldMapper

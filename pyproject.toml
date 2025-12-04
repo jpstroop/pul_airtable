@@ -30,11 +30,13 @@ markers = [
 [tool.mypy]
 files = ["staff_management", "cli.py", "main.py"]
 strict = true
+# disallow_any_expr = true
 
 [tool.pyright]
 # MyPy can infer these, but pyright cannot; this just removes the error 
 # highlights and VSCode.
 reportUnknownMemberType = false
+reportUnknownLambdaType = false
 reportPossiblyUnboundVariable = false
 
 [tool.black]

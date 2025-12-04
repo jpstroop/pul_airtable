@@ -15,6 +15,7 @@ from click import style as click_style
 from pyairtable.api.types import Fields
 
 # Local imports
+from staff_management.field_delta import FieldDelta
 from staff_management.field_mapper import FieldMapper
 from staff_management.record_matcher import RecordMatcher
 from staff_management.report_row import ReportRow
@@ -35,8 +36,9 @@ class App:
     _staff_report: StaffReport
     _record_matcher: RecordMatcher
     _sync_validator: SyncValidator
+    _verbose: bool
 
-    def __init__(self, src_data_path: str, config: Optional[JSONDict] = None) -> None:
+    def __init__(self, src_data_path: str, config: Optional[JSONDict] = None, verbose: bool = False) -> None:
         if config is None:
             # Legacy: load from private.json (for backward compatibility)
             config = App._load_private()
@@ -50,6 +52,7 @@ class App:
         self._staff_report = StaffReport(src_data_path)
         self._record_matcher = RecordMatcher(self._airtable)
         self._sync_validator = SyncValidator(self._airtable, self._staff_report)
+        self._verbose = verbose
 
     def _handle_position_number_change(
         self, report_row: ReportRow, airtable_record: AirtableRecord, data: Fields
@@ -224,18 +227,11 @@ class App:
 
                 # Only update if not already handled by position number change logic
                 if not already_updated:
-                    # Check if on-leave status changed and log it
-                    old_leave_status = fields.get("pul:On Leave?", False)
-                    new_leave_status = data.get("pul:On Leave?", False)
-                    if old_leave_status != new_leave_status:
-                        if new_leave_status:
-                            echo(  # pragma: no cover
-                                click_style(f"  → {r.preferred_name} is now on leave (Status: {r.status})", fg="cyan")
-                            )
-                        else:
-                            echo(  # pragma: no cover
-                                click_style(f"  → {r.preferred_name} has returned from leave", fg="green")
-                            )
+                    # Show field changes if verbose mode enabled
+                    if self._verbose:
+                        delta = FieldDelta.compute_delta(fields, data)
+                        if delta:
+                            FieldDelta.display_changes(r.preferred_name, delta)
 
                     if fields["Position Number"] != "[N/A]":
                         self._airtable.update_record(str(airtable_record["id"]), data, log=log)
@@ -263,7 +259,7 @@ class App:
         # 3. Update pula managers (uses Airtable)
         # 4. Update DoF managers (uses Airtable)
         self._airtable.clear_supervisor_statuses()
-        self._airtable.update_supervisor_hierarchy(self._staff_report, THROTTLE_INTERVAL)
+        self._airtable.update_supervisor_hierarchy(self._staff_report, THROTTLE_INTERVAL, self._verbose)
         self._airtable.update_pula_supervisor_statuses()
         self._airtable.update_dof_librarian_supervisor_statuses()
 
@@ -272,7 +268,7 @@ class App:
 
     def run_checks(self) -> None:
         """Run validation checks and report discrepancies between CSV and Airtable."""
-        self._sync_validator.report_discrepancies()
+        self._sync_validator.report_discrepancies(verbose=self._verbose)
 
     @staticmethod
     def _load_private(pth: str = "./private.json") -> JSONDict:

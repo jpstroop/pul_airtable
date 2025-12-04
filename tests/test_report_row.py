@@ -1,5 +1,3 @@
-"""Unit tests for ReportRow class."""
-
 # Standard library imports
 from typing import Dict
 

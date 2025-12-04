@@ -92,42 +92,46 @@ class TestGetRecordMethods:
     """Tests for get_record_by_* methods."""
 
     def test_get_record_by_emplid_found(self, staff_airtable: StaffAirtable, mock_main_table: Mock) -> None:
-        """Test get_record_by_emplid returns record when found."""
+        """Test get_record_by_emplid returns record when found using cache."""
         expected_record = cast(AirtableRecord, {"id": "rec123", "fields": {"University ID": "123456789"}})
-        mock_main_table.first.return_value = expected_record
+        other_record = cast(AirtableRecord, {"id": "rec456", "fields": {"University ID": "987654321"}})
+        mock_main_table.all.return_value = [expected_record, other_record]
 
         result = staff_airtable.get_record_by_emplid("123456789")
 
         assert result == expected_record
-        mock_main_table.first.assert_called_once_with(formula='{University ID} = "123456789"')
+        mock_main_table.all.assert_called_once()
 
     def test_get_record_by_emplid_not_found(self, staff_airtable: StaffAirtable, mock_main_table: Mock) -> None:
-        """Test get_record_by_emplid returns None when not found."""
-        mock_main_table.first.return_value = None
+        """Test get_record_by_emplid returns None when not found using cache."""
+        other_record = cast(AirtableRecord, {"id": "rec456", "fields": {"University ID": "987654321"}})
+        mock_main_table.all.return_value = [other_record]
 
         result = staff_airtable.get_record_by_emplid("999999999")
 
         assert result is None
 
     def test_get_record_by_position_no_found(self, staff_airtable: StaffAirtable, mock_main_table: Mock) -> None:
-        """Test get_record_by_position_no finds record."""
+        """Test get_record_by_position_no finds record using cache."""
         expected_record = cast(AirtableRecord, {"id": "rec456", "fields": {"Position Number": "00012345"}})
-        mock_main_table.first.return_value = expected_record
+        other_record = cast(AirtableRecord, {"id": "rec789", "fields": {"Position Number": "00067890"}})
+        mock_main_table.all.return_value = [expected_record, other_record]
 
         result = staff_airtable.get_record_by_position_no("00012345")
 
         assert result == expected_record
-        mock_main_table.first.assert_called_once_with(formula='{Position Number} = "00012345"')
+        mock_main_table.all.assert_called_once()
 
     def test_get_record_by_name_for_dof_staff(self, staff_airtable: StaffAirtable, mock_main_table: Mock) -> None:
-        """Test get_record_by_name for DoF staff matching."""
+        """Test get_record_by_name for DoF staff matching using cache."""
         expected_record = cast(AirtableRecord, {"id": "rec789", "fields": {"pul:Preferred Name": "Jordan Lee"}})
-        mock_main_table.first.return_value = expected_record
+        other_record = cast(AirtableRecord, {"id": "rec123", "fields": {"pul:Preferred Name": "Taylor Smith"}})
+        mock_main_table.all.return_value = [expected_record, other_record]
 
         result = staff_airtable.get_record_by_name("Jordan Lee")
 
         assert result == expected_record
-        mock_main_table.first.assert_called_once_with(formula='{pul:Preferred Name} = "Jordan Lee"')
+        mock_main_table.all.assert_called_once()
 
     def test_get_record_by_at_id(self, staff_airtable: StaffAirtable, mock_main_table: Mock) -> None:
         """Test get_record_by_at_id retrieves by Airtable ID."""

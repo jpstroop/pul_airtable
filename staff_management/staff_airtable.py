@@ -1,5 +1,6 @@
 # Standard library imports
 from datetime import date
+from functools import cached_property
 from re import sub
 from sys import stderr
 from time import sleep
@@ -50,6 +51,15 @@ class StaffAirtable:
         self._removal_history_table = api.table(base_id, history_table_id)
         self._next_vacancy_number = None
 
+    @cached_property
+    def cache(self) -> List[AirtableRecord]:
+        """Load all records into memory cache (cached after first access).
+
+        This reduces API calls from ~300-400 to 1 per sync operation.
+        Cache is loaded once and used for all subsequent lookups.
+        """
+        return self._main_table.all()
+
     @property
     def next_vacancy(self) -> str:
         if not self._next_vacancy_number:
@@ -63,14 +73,12 @@ class StaffAirtable:
 
     @property
     def all_emplids(self) -> List[str]:
-        ids = self._main_table.all(fields=("University ID"))
-        return [str(i["fields"]["University ID"]).zfill(9) for i in ids if i["fields"].get("University ID")]
+        return [str(i["fields"]["University ID"]).zfill(9) for i in self.cache if i["fields"].get("University ID")]
 
     @property
     def all_position_numbers(self) -> List[str]:
-        nos = self._main_table.all(fields=("Position Number"))
         filt = lambda pn: not pn.startswith("[") and pn != ""
-        return list(filter(filt, [str(n["fields"].get("Position Number", "")) for n in nos]))
+        return list(filter(filt, [str(n["fields"].get("Position Number", "")) for n in self.cache]))
 
     @property
     def all_vacancies(self) -> List[AirtableRecord]:
@@ -152,14 +160,25 @@ class StaffAirtable:
             return False
 
     def get_record_by_emplid(self, emplid: str) -> Optional[AirtableRecord]:
-        return self._main_table.first(formula=f'{{University ID}} = "{emplid}"')
+        """Find record by emplid, using cache."""
+        for record in self.cache:
+            if str(record["fields"].get("University ID")) == emplid:
+                return record
+        return None
 
     def get_record_by_position_no(self, pn: str) -> Optional[AirtableRecord]:
-        return self._main_table.first(formula=f'{{Position Number}} = "{pn}"')
+        """Find record by position number, using cache."""
+        for record in self.cache:
+            if str(record["fields"].get("Position Number")) == pn:
+                return record
+        return None
 
     def get_record_by_name(self, name: str) -> Optional[AirtableRecord]:
-        """Find record by preferred name. Used primarily for DoF staff without position numbers."""
-        return self._main_table.first(formula=f'{{pul:Preferred Name}} = "{name}"')
+        """Find record by preferred name, using cache. Used primarily for DoF staff without position numbers."""
+        for record in self.cache:
+            if str(record["fields"].get("pul:Preferred Name")) == name:
+                return record
+        return None
 
     def get_record_by_at_id(self, at_id: str) -> AirtableRecord:
         return self._main_table.get(at_id)
@@ -265,7 +284,9 @@ class StaffAirtable:
             updates.append(d)
         self._main_table.batch_update(updates)
 
-    def update_supervisor_hierarchy(self, staff_report: "StaffReport", throttle_interval: float) -> None:
+    def update_supervisor_hierarchy(
+        self, staff_report: "StaffReport", throttle_interval: float, verbose: bool = False
+    ) -> None:
 
         for empl, supr in staff_report.supervisor_hierarchy:
             try:
@@ -280,6 +301,23 @@ class StaffAirtable:
                         {"id": employee_record["id"], "fields": {"Manager/Supervisor": [supervisor_record["id"]]}},
                     ),
                 ]
+                # Show supervisor relationship change if verbose
+                if verbose:
+                    employee_name = str(employee_record["fields"].get("pul:Preferred Name", "Unknown"))
+                    old_supervisor_ids = employee_record["fields"].get("Manager/Supervisor", [])
+                    if isinstance(old_supervisor_ids, list) and len(old_supervisor_ids) > 0:
+                        old_supervisor_record = self.get_record_by_at_id(str(old_supervisor_ids[0]))
+                        old_supervisor_name = str(old_supervisor_record["fields"].get("pul:Preferred Name", "Unknown"))
+                    else:
+                        old_supervisor_name = "(none)"
+                    new_supervisor_name = str(supervisor_record["fields"].get("pul:Preferred Name", "Unknown"))
+                    echo(  # pragma: no cover
+                        click_style(
+                            f"{employee_name} supervisor changed from {old_supervisor_name} to {new_supervisor_name}",
+                            fg="cyan",
+                        )
+                    )
+
                 self._main_table.batch_update(updates)
             except Exception as e:  # Change to just handle KeyErrors?
                 empl_name = (

@@ -1,8 +1,3 @@
-"""Tests for Dean of the Faculty staff name-based matching logic.
-
-These tests verify the DoF staff identification and matching behavior.
-"""
-
 # Standard library imports
 from typing import Dict
 

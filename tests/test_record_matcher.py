@@ -178,7 +178,7 @@ class TestMatchingPriority:
 
         # Should return emplid match, not name match
         assert record == emplid_record
-        assert record["id"] == "rec_emplid"
+        assert record["id"] == "rec_emplid"  # pyright: ignore[reportOptionalSubscript]
         assert should_log is False
 
     def test_emplid_takes_priority_over_position(
@@ -196,7 +196,7 @@ class TestMatchingPriority:
 
         # Should return emplid match, not position match
         assert record == emplid_record
-        assert record["id"] == "rec_emplid"
+        assert record["id"] == "rec_emplid"  # pyright: ignore[reportOptionalSubscript]
         assert should_log is False
 
 

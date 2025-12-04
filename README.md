@@ -87,10 +87,61 @@ pdm run pul-staff --production update-supervisors
 # Specify custom CSV file path
 pdm run pul-staff --csv ./path/to/report.csv sync
 
+# Show detailed field changes during sync (verbose mode)
+pdm run pul-staff sync --verbose
+pdm run pul-staff sync -v
+
+# Show detailed supervisor updates (verbose mode)
+pdm run pul-staff update-supervisors --verbose
+pdm run pul-staff update-supervisors -v
+
+# Combine flags
+pdm run pul-staff --production sync --verbose
+pdm run pul-staff --production update-supervisors --verbose
+
 # Get help
 pdm run pul-staff --help
 pdm run pul-staff sync --help
 ```
+
+**Verbose Mode (`--verbose` / `-v`)**:
+
+Available for `check`, `sync`, and `update-supervisors` commands.
+
+*For check command*:
+- **Non-verbose (default)**: Shows count of records with field differences and always displays position number changes (critical)
+- **Verbose**: Shows all field-by-field changes for every record
+- Example output (non-verbose):
+  ```
+  Found 5 record(s) with field differences
+  John Doe [Position Number] changed from [12345] to [67890]
+  ```
+- Example output (verbose):
+  ```
+  Field differences between CSV and Airtable:
+  John Doe [Title] changed from [Associate Librarian] to [Senior Librarian]
+  John Doe [Grade] changed from [P3] to [P4]
+  Jane Smith [Department] changed from [IT] to [Library Services]
+  ```
+
+*For sync command*:
+- Displays line-by-line changes for each field
+- Format: `Name [field] changed from [old value] to [new value]`
+- Example output:
+  ```
+  Jane Smith [Title] changed from [Associate Librarian] to [Senior Librarian]
+  John Doe [pul:On Leave?] changed from [No] to [Yes]
+  ```
+
+*For update-supervisors command*:
+- Displays each supervisor relationship change
+- Format: `Employee supervisor changed from Old Supervisor to New Supervisor`
+- Useful for auditing supervisor hierarchy changes
+- Example output:
+  ```
+  Jane Smith supervisor changed from Alice Brown to John Doe
+  Bob Jones supervisor changed from (none) to Jane Smith
+  ```
 
 ## Development
 

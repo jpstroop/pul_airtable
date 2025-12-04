@@ -18,6 +18,22 @@ class FieldMapper:
     """
 
     @staticmethod
+    def _strip_time_component(date_value: str) -> str:
+        """Strip time component from date strings.
+
+        CSV dates always include " 00:00:00" which we don't store in Airtable.
+
+        Args:
+            date_value: Date string potentially with time component
+
+        Returns:
+            Date string without time component
+        """
+        if isinstance(date_value, str) and " 00:00:00" in date_value:
+            return date_value.replace(" 00:00:00", "")
+        return date_value
+
+    @staticmethod
     def extract_fields(record: AirtableRecord) -> JSONDict:
         """Extract fields dict from Airtable record with type narrowing.
 
@@ -51,7 +67,8 @@ class FieldMapper:
             data["Admin. Group"] = report_row.admin_group
             data["pul:Search Status"] = "Hired"
             data["University Phone"] = report_row.phone
-            data["End Date"] = report_row.term_end
+            # Strip time component from dates (CSV includes " 00:00:00", Airtable stores dates only)
+            data["End Date"] = FieldMapper._strip_time_component(report_row.term_end)
             data["Term/Perm/CA Track"] = report_row.term_perm
             data["Title"] = report_row.title
             data["pul:Preferred Name"] = report_row.preferred_name
@@ -59,8 +76,8 @@ class FieldMapper:
             data["Last Name"] = report_row.last_name
             data["First Name"] = report_row.first_name
             data["Time"] = report_row.time
-            data["Start Date"] = report_row.start_date
-            data["Rehire Date"] = report_row.rehire_date
+            data["Start Date"] = FieldMapper._strip_time_component(report_row.start_date)
+            data["Rehire Date"] = FieldMapper._strip_time_component(report_row.rehire_date)
             data["Grade"] = report_row.grade
             data["Sal. Plan"] = report_row.get("Sal Plan")
             data["Position Number"] = report_row.position_number

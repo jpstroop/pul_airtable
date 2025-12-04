@@ -1,9 +1,17 @@
+# Standard library imports
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Tuple
+
 # Third party imports
 from click import echo
 from click import style as click_style
 
 # Local imports
+from staff_management.field_delta import FieldDelta
 from staff_management.field_mapper import FieldMapper
+from staff_management.record_matcher import RecordMatcher
 from staff_management.staff_airtable import StaffAirtable
 from staff_management.staff_report import StaffReport
 
@@ -20,6 +28,7 @@ class SyncValidator:
 
     _airtable: StaffAirtable
     _report: StaffReport
+    _record_matcher: RecordMatcher
 
     def __init__(self, airtable: StaffAirtable, report: StaffReport) -> None:
         """Initialize SyncValidator with Airtable and report instances.
@@ -30,6 +39,7 @@ class SyncValidator:
         """
         self._airtable = airtable
         self._report = report
+        self._record_matcher = RecordMatcher(airtable)
 
     def check_emplids_missing_in_airtable(self) -> list[str]:
         """Return emplids in CSV but not in Airtable.
@@ -91,8 +101,42 @@ class SyncValidator:
 
         return result
 
-    def report_discrepancies(self) -> None:
+    def check_field_differences(self) -> List[Tuple[str, Dict[str, Tuple[Any, Any]]]]:
+        """Check for field value differences between CSV and Airtable.
+
+        Returns:
+            List of tuples: (employee_name, field_delta_dict)
+            Only includes records where fields differ between CSV and Airtable.
+        """
+        differences: List[Tuple[str, Dict[str, Tuple[Any, Any]]]] = []
+
+        for report_row in self._report.rows:
+            # Find matching Airtable record
+            airtable_record, _ = self._record_matcher.find_match(report_row)
+            if not airtable_record:
+                continue  # Record doesn't exist in Airtable (covered by other checks)
+
+            # Skip vacancies
+            airtable_fields = FieldMapper.extract_fields(airtable_record)
+            name = str(airtable_fields.get("pul:Preferred Name", "Unknown"))
+            if name.startswith("__VACANCY"):
+                continue
+
+            # Compare fields
+            new_fields = FieldMapper.map_row_to_fields(report_row)
+            delta = FieldDelta.compute_delta(airtable_fields, new_fields)
+
+            if delta:
+                differences.append((report_row.preferred_name, delta))
+
+        return differences
+
+    def report_discrepancies(self, verbose: bool = False) -> None:
         """Run all checks and echo results to console.
+
+        Args:
+            verbose: If True, show all field changes. If False, show only counts
+                    and position number changes (which are critical).
 
         Uses Click styling for colored output. This method has side effects
         (console output) and is harder to test, but the underlying check methods
@@ -147,3 +191,32 @@ class SyncValidator:
             echo(  # pragma: no cover
                 click_style(f"Position {pn} ({name}) is in Airtable but NOT in CSV Report", fg="yellow")
             )
+
+        # Check for field value differences in matching records
+        field_differences = self.check_field_differences()
+        if field_differences:
+            if not verbose:
+                # Non-verbose: show count and position number changes only
+                echo(  # pragma: no cover
+                    click_style(
+                        f"\nFound {len(field_differences)} record(s) with field differences", fg="cyan", bold=True
+                    )
+                )
+                # Always show position number changes (critical)
+                for name, delta in field_differences:
+                    if "Position Number" in delta:
+                        old_val, new_val = delta["Position Number"]
+                        old_str = FieldDelta.format_value(old_val)
+                        new_str = FieldDelta.format_value(new_val)
+                        echo(  # pragma: no cover
+                            click_style(
+                                f"{name} [Position Number] changed from [{old_str}] to [{new_str}]", fg="red", bold=True
+                            )
+                        )
+            else:
+                # Verbose: show all field changes
+                echo(  # pragma: no cover
+                    click_style(f"\nField differences between CSV and Airtable:", fg="cyan", bold=True)
+                )
+                for name, delta in field_differences:
+                    FieldDelta.display_changes(name, delta)

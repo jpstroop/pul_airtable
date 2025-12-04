@@ -80,14 +80,15 @@ def cli(production: bool, csv: str) -> None:
 
 
 @cli.command()
-def check() -> None:
+@option("--verbose", "-v", is_flag=True, help="Show detailed information during checks")
+def check(verbose: bool) -> None:
     """Run consistency checks between CSV and Airtable."""
     # Third party imports
     import click
 
     ctx = click.get_current_context()
     config = load_config(ctx.obj["production"])
-    app = App(ctx.obj["csv"], config)
+    app = App(ctx.obj["csv"], config, verbose=verbose)
 
     echo("Checking for differences between the CSV roster and Airtable...")
     app.run_checks()
@@ -95,7 +96,8 @@ def check() -> None:
 
 
 @cli.command()
-def sync() -> None:
+@option("--verbose", "-v", is_flag=True, help="Show detailed field changes during sync")
+def sync(verbose: bool) -> None:
     """Sync CSV report data to Airtable (interactive)."""
     # Third party imports
     import click
@@ -108,7 +110,7 @@ def sync() -> None:
             echo("Aborted.")
             return
 
-    app = App(ctx.obj["csv"], config)
+    app = App(ctx.obj["csv"], config, verbose=verbose)
 
     echo("Syncing CSV data to Airtable...")
     app.sync_airtable_with_report()
@@ -116,14 +118,15 @@ def sync() -> None:
 
 
 @cli.command()
-def update_supervisors() -> None:
+@option("--verbose", "-v", is_flag=True, help="Show detailed supervisor updates")
+def update_supervisors(verbose: bool) -> None:
     """Update supervisor hierarchy (slow operation)."""
     # Third party imports
     import click
 
     ctx = click.get_current_context()
     config = load_config(ctx.obj["production"])
-    app = App(ctx.obj["csv"], config)
+    app = App(ctx.obj["csv"], config, verbose=verbose)
 
     echo("Updating supervisor information...")
     echo(style("Warning: This operation is slow due to API rate limiting", fg="yellow"))

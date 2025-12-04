@@ -213,6 +213,7 @@ class TestReportDiscrepancies:
         mock_report.all_emplids = ["123"]
         mock_airtable.all_position_numbers = ["00012345"]
         mock_report.all_position_numbers = ["00012345"]
+        mock_report.rows = []
 
         # Should not raise
         sync_validator.report_discrepancies()
@@ -223,6 +224,7 @@ class TestReportDiscrepancies:
         mock_report.all_emplids = ["123", "789"]
         mock_airtable.all_position_numbers = []
         mock_report.all_position_numbers = []
+        mock_report.rows = []
 
         # Mock lookups
         mock_report.get_record_by_emplid.return_value = {"Name": "Test Employee"}
@@ -241,6 +243,7 @@ class TestReportDiscrepancies:
         mock_report.all_emplids = ["999"]
         mock_airtable.all_position_numbers = []
         mock_report.all_position_numbers = []
+        mock_report.rows = []
 
         # Return None for the lookup
         mock_report.get_record_by_emplid.return_value = None
@@ -256,6 +259,7 @@ class TestReportDiscrepancies:
         mock_report.all_emplids = []
         mock_airtable.all_position_numbers = []
         mock_report.all_position_numbers = []
+        mock_report.rows = []
 
         # Return None for the lookup
         mock_airtable.get_record_by_emplid.return_value = None
@@ -271,6 +275,7 @@ class TestReportDiscrepancies:
         mock_report.all_emplids = []
         mock_airtable.all_position_numbers = []
         mock_report.all_position_numbers = []
+        mock_report.rows = []
 
         # Dean record with position 00003305
         mock_airtable.get_record_by_emplid.return_value = cast(
@@ -288,6 +293,7 @@ class TestReportDiscrepancies:
         mock_report.all_emplids = []
         mock_airtable.all_position_numbers = []
         mock_report.all_position_numbers = ["00099999"]
+        mock_report.rows = []
 
         # Return None for position lookup
         mock_report.get_record_by_position_no.return_value = None
@@ -303,6 +309,7 @@ class TestReportDiscrepancies:
         mock_report.all_emplids = []
         mock_airtable.all_position_numbers = ["00099999"]
         mock_report.all_position_numbers = []
+        mock_report.rows = []
 
         # Return None for position lookup
         mock_airtable.get_record_by_position_no.return_value = None
