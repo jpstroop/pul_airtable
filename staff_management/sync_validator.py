@@ -144,44 +144,74 @@ class SyncValidator:
         """
         # Check emplids missing in Airtable
         missing_in_airtable = self.check_emplids_missing_in_airtable()
+        # Check position numbers missing in Airtable
+        pn_missing_in_airtable = self.check_position_numbers_missing_in_airtable()
+
+        # Header for CSV → Airtable check
+        echo(  # pragma: no cover
+            click_style(
+                f"\nCSV → Airtable: {len(missing_in_airtable)} emplid(s) and {len(pn_missing_in_airtable)} position(s) in CSV but not Airtable",
+                fg="cyan",
+                bold=True,
+            )
+        )
+
         for emplid in missing_in_airtable:
             report_record = self._report.get_record_by_emplid(emplid)
             if report_record is None:
                 continue
             name = report_record.get("Name", "Unknown")
             echo(  # pragma: no cover
-                click_style(f"Employee {emplid} ({name}) is in CSV but NOT in Airtable", fg="yellow")
+                click_style(f"  → Employee {emplid} ({name}) is in CSV but NOT in Airtable", fg="yellow")
             )
 
-        # Check emplids missing in CSV
-        missing_in_csv = self.check_emplids_missing_in_csv()
-        for emplid in missing_in_csv:
-            record = self._airtable.get_record_by_emplid(emplid)
-            if record is None:
-                continue
-            fields = FieldMapper.extract_fields(record)
-            name = str(fields.get("pul:Preferred Name", "Unknown"))
-            position = str(fields.get("Position Number", ""))
-            # Skip Dean position (special case - should remain in Airtable)
-            if position == self.DEAN_POSITION:
-                continue
-            echo(  # pragma: no cover
-                click_style(f"Employee {emplid} ({name}) is in Airtable but NOT in CSV Report", fg="yellow")
-            )
-
-        # Check position numbers missing in Airtable
-        pn_missing_in_airtable = self.check_position_numbers_missing_in_airtable()
         for pn in pn_missing_in_airtable:
             report_row = self._report.get_record_by_position_no(pn)
             if report_row is None:
                 continue
             name = report_row.preferred_name
             echo(  # pragma: no cover
-                click_style(f"Position Number {pn} ({name}) is missing from Airtable.", fg="yellow")
+                click_style(f"  → Position Number {pn} ({name}) is missing from Airtable", fg="yellow")
             )
+
+        # Check emplids missing in CSV
+        missing_in_csv_raw = self.check_emplids_missing_in_csv()
+        # Filter out Dean position before counting/displaying
+        missing_in_csv = []
+        for emplid in missing_in_csv_raw:
+            record = self._airtable.get_record_by_emplid(emplid)
+            if record is None:
+                continue
+            fields = FieldMapper.extract_fields(record)
+            position = str(fields.get("Position Number", ""))
+            # Skip Dean position (special case - should remain in Airtable)
+            if position == self.DEAN_POSITION:
+                continue
+            missing_in_csv.append((emplid, record))
 
         # Check position numbers missing in CSV
         pn_missing_in_csv = self.check_position_numbers_missing_in_csv()
+
+        # Header for Airtable → CSV check
+        echo(  # pragma: no cover
+            click_style(
+                f"\nAirtable → CSV: {len(missing_in_csv)} emplid(s) and {len(pn_missing_in_csv)} position(s) in Airtable but not CSV",
+                fg="cyan",
+                bold=True,
+            )
+        )
+
+        for emplid, record in missing_in_csv:
+            fields = FieldMapper.extract_fields(record)
+            name = str(fields.get("pul:Preferred Name", "Unknown"))
+            position = str(fields.get("Position Number", ""))
+            echo(  # pragma: no cover
+                click_style(
+                    f"  → Employee {emplid} ({name}, Position {position}) is in Airtable but NOT in CSV Report",
+                    fg="yellow",
+                )
+            )
+
         for pn in pn_missing_in_csv:
             record = self._airtable.get_record_by_position_no(pn)
             if record is None:
@@ -189,7 +219,7 @@ class SyncValidator:
             fields = FieldMapper.extract_fields(record)
             name = str(fields.get("pul:Preferred Name", "Unknown"))
             echo(  # pragma: no cover
-                click_style(f"Position {pn} ({name}) is in Airtable but NOT in CSV Report", fg="yellow")
+                click_style(f"  → Position {pn} ({name}) is in Airtable but NOT in CSV Report", fg="yellow")
             )
 
         # Check for field value differences in matching records
