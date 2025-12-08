@@ -311,12 +311,14 @@ class StaffAirtable:
                     else:
                         old_supervisor_name = "(none)"
                     new_supervisor_name = str(supervisor_record["fields"].get("pul:Preferred Name", "Unknown"))
-                    echo(  # pragma: no cover
-                        click_style(
-                            f"{employee_name} supervisor changed from {old_supervisor_name} to {new_supervisor_name}",
-                            fg="cyan",
+                    # Only show message if supervisor actually changed
+                    if old_supervisor_name != new_supervisor_name:
+                        echo(  # pragma: no cover
+                            click_style(
+                                f"{employee_name} supervisor changed from {old_supervisor_name} to {new_supervisor_name}",
+                                fg="cyan",
+                            )
                         )
-                    )
 
                 self._main_table.batch_update(updates)
             except Exception as e:  # Change to just handle KeyErrors?
