@@ -29,6 +29,7 @@ from staff_management.sync_prompts import SyncPrompts
 from staff_management.sync_validator import SyncValidator
 
 THROTTLE_INTERVAL: float = 0.2
+MANUALLY_MANAGED_STATUSES: frozenset[str] = frozenset({"Resigned/End date approaching"})
 
 
 class App:
@@ -219,6 +220,11 @@ class App:
                 data = FieldMapper.map_row_to_fields(r)
                 if str(fields["pul:Preferred Name"]).startswith("__VACANCY"):
                     data = FieldMapper.map_row_to_fields(r)
+
+                # Preserve manually managed search statuses
+                existing_status = fields.get("pul:Search Status")
+                if isinstance(existing_status, str) and existing_status in MANUALLY_MANAGED_STATUSES:
+                    data["pul:Search Status"] = existing_status
 
                 # Check for position number changes
                 should_continue, already_updated = self._handle_position_number_change(r, airtable_record, data)
