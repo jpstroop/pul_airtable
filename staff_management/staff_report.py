@@ -6,16 +6,13 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-# Third party imports
-from click import echo
-from click import style as click_style
-
 # Local imports
 from staff_management.report_row import ReportRow
 
 
 class StaffReport:
     rows: List[ReportRow]
+    filtered_appointments: Dict[str, List[Optional[str]]]  # emplid -> ignored titles
 
     # Keywords to identify library-related titles (for DoF staff with dual appointments)
     LIBRARY_TITLE_KEYWORDS: List[str] = [
@@ -30,6 +27,7 @@ class StaffReport:
     ]
 
     def __init__(self, file_path: str) -> None:
+        self.filtered_appointments: Dict[str, List[Optional[str]]] = {}
         with open(file_path, "r", encoding="utf-16") as f:  # Note encoding
             all_rows = [ReportRow(r) for r in DictReader(f, delimiter="\t")]
 
@@ -73,32 +71,12 @@ class StaffReport:
                 elif len(library_rows) > 1:
                     # Multiple library titles, use first
                     chosen = library_rows[0]
-                    echo(  # pragma: no cover
-                        click_style(
-                            f"WARNING: {chosen.preferred_name} ({emplid}) has {len(library_rows)} library titles, using: {chosen.title}",
-                            fg="yellow",
-                        )
-                    )
                 else:
                     # No library titles found, use first occurrence
                     chosen = rows[0]
-                    echo(  # pragma: no cover
-                        click_style(
-                            f"WARNING: {chosen.preferred_name} ({emplid}) has {len(rows)} titles but none are library-related, using: {chosen.title}",
-                            fg="yellow",
-                        )
-                    )
 
-                # Log the filtering
-                other_titles = [r.title for r in rows if r != chosen]
-                other_titles_str = ", ".join(f"'{t}'" for t in other_titles)
-                echo(  # pragma: no cover
-                    click_style(
-                        f"  → {chosen.preferred_name} has multiple appointments, keeping '{chosen.title}' and ignoring: {other_titles_str}",
-                        fg="cyan",
-                    )
-                )
-
+                # Store ignored titles; displayed only when a sync change actually occurs
+                self.filtered_appointments[emplid] = [r.title for r in rows if r != chosen]
                 filtered.append(chosen)
 
         return filtered

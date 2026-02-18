@@ -5,6 +5,7 @@ from sys import exit as sys_exit
 from typing import cast
 
 # Third party imports
+from click import argument
 from click import confirm
 from click import echo
 from click import group
@@ -133,6 +134,26 @@ def update_supervisors(verbose: bool) -> None:
 
     app.update_supervisor_info()
     echo(style("✓ Supervisor info updated", fg="green"))
+
+
+@cli.command()
+@argument("emplid")
+def employee_to_vacancy(emplid: str) -> None:
+    """Convert an employee record to a vacancy by emplid."""
+    # Third party imports
+    import click
+
+    ctx = click.get_current_context()
+    config = load_config(ctx.obj["production"])
+
+    if ctx.obj["production"]:
+        if not confirm(style(f"You are in PRODUCTION mode. Convert {emplid} to a vacancy?", fg="red", bold=True)):
+            echo("Aborted.")
+            return
+
+    app = App(ctx.obj["csv"], config)
+    app.employee_to_vacancy(emplid)
+    echo(style("✓ Done", fg="green"))
 
 
 def main() -> None:

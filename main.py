@@ -227,11 +227,18 @@ class App:
 
                 # Only update if not already handled by position number change logic
                 if not already_updated:
-                    # Show field changes if verbose mode enabled
-                    if self._verbose:
+                    is_filtered = r.emplid in self._staff_report.filtered_appointments
+                    if self._verbose or is_filtered:
                         delta = FieldDelta.compute_delta(fields, data)
-                        if delta:
+                        if self._verbose and delta:
                             FieldDelta.display_changes(r.preferred_name, delta)
+                        if is_filtered and "Title" in delta:
+                            ignored = self._staff_report.filtered_appointments[r.emplid]
+                            ignored_str = ", ".join(f"'{t}'" for t in ignored if t)
+                            echo(click_style(
+                                f"Note: {r.preferred_name} has multiple appointments; using '{r.title}', ignoring: {ignored_str}",
+                                fg="cyan",
+                            ))
 
                     if fields["Position Number"] != "[N/A]":
                         self._airtable.update_record(str(airtable_record["id"]), data, log=log)
