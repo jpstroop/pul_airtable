@@ -10,7 +10,7 @@ DIVISION_LOOKUP: Dict[str, str] = {
     "Lib-Data, Rsrch&Teaching Svcs": "Data, Research, and Teaching Services",
     "Lib-Research Coll & Presr Cons": "ReCAP",
     "Lib-Rsrch,Data &Open Schlrshp": "Research, Data, and Open Scholarship",
-    "Library - Main": "Office of the University Librarian",
+    "Library - Main": "Office of the Dean of Libraries",
     "Library-Deputy Univ Librarian": "Office of the Deputy Dean of Libraries",
     "Library-Finance&Acquistns Svcs": "Finance and Acquisitions Services",
     "Library-Special Collections": "Special and Distinctive Collections",
