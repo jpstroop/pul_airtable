@@ -1,5 +1,6 @@
 # Standard library imports
 from sys import stderr
+from typing import Optional
 from typing import cast
 
 # Third party imports
@@ -10,6 +11,8 @@ from staff_management.report_row import ReportRow
 from staff_management.staff_airtable import AirtableRecord
 from staff_management.staff_airtable import JSONDict
 
+MANUALLY_MANAGED_STATUSES: frozenset[str] = frozenset({"Resigned/End date approaching"})
+
 
 class FieldMapper:
     """Transforms data between CSV report rows and Airtable field format.
@@ -18,16 +21,17 @@ class FieldMapper:
     """
 
     @staticmethod
-    def _strip_time_component(date_value: str) -> str:
+    def _strip_time_component(date_value: Optional[str]) -> Optional[str]:
         """Strip time component from date strings.
 
         CSV dates always include " 00:00:00" which we don't store in Airtable.
 
         Args:
-            date_value: Date string potentially with time component
+            date_value: Date string potentially with time component, or None
+                when the CSV has no date for this field
 
         Returns:
-            Date string without time component
+            Date string without time component, or None when given None
         """
         if isinstance(date_value, str) and " 00:00:00" in date_value:
             return date_value.replace(" 00:00:00", "")

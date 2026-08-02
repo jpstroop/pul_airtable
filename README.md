@@ -64,6 +64,12 @@ pdm run pul-staff sync
 
 # Update supervisor hierarchy on TEST base
 pdm run pul-staff update-supervisors
+
+# Convert an employee's position to a vacancy on TEST base (by employee ID)
+pdm run pul-staff employee-to-vacancy 123456789
+
+# Convert a position to a vacancy on TEST base (by position number)
+pdm run pul-staff position-to-vacancy 00012345
 ```
 
 ### Production Environment (Requires Explicit Flag)
@@ -79,6 +85,12 @@ pdm run pul-staff --production sync
 
 # Update supervisors on PRODUCTION
 pdm run pul-staff --production update-supervisors
+
+# Convert an employee's position to a vacancy on PRODUCTION (prompts for confirmation)
+pdm run pul-staff --production employee-to-vacancy 123456789
+
+# Convert a position to a vacancy on PRODUCTION (prompts for confirmation)
+pdm run pul-staff --production position-to-vacancy 00012345
 ```
 
 ### Additional Options
@@ -142,6 +154,32 @@ Available for `check`, `sync`, and `update-supervisors` commands.
   Jane Smith supervisor changed from Alice Brown to John Doe
   Bob Jones supervisor changed from (none) to Jane Smith
   ```
+
+### Converting a Position to a Vacancy
+
+When someone leaves, their position can be turned into a vacancy on demand — without waiting for the next full `sync`. Two commands do the same conversion; they differ only in how the record is located:
+
+```bash
+# By employee ID (Airtable "University ID" field)
+pdm run pul-staff employee-to-vacancy <emplid>
+
+# By position number (Airtable "Position Number" field)
+pdm run pul-staff position-to-vacancy <position_number>
+
+# Add --production to target the production base (prompts for confirmation)
+pdm run pul-staff --production position-to-vacancy <position_number>
+```
+
+Use `position-to-vacancy` when you know the position number but not the employee ID, or for records that have no employee ID to match on (for example DoF staff matched by name). `position-to-vacancy` refuses to run if the position is already a vacancy. The conversion:
+
+- Renames the record to the next `__VACANCY_NNN__` placeholder
+- Preserves the departing person's name in the **Last Occupant** field
+- Keeps the **Position Number**, so the vacancy stays tied to its position
+- Clears personal fields (name, email, netid, phone, start/end/rehire dates, University ID)
+- Sets **pul:Search Status** to `Recently Vacated` and applies the "vacant" headshot
+- Logs the removal (name, netid, title, position, division, supervisor, and today's date) to the removal-history table
+
+This is the same conversion the interactive `sync` command offers when it finds an Airtable record that is missing from the CSV report; the standalone command simply lets you do it on demand for a single person.
 
 ## Development
 

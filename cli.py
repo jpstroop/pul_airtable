@@ -156,6 +156,28 @@ def employee_to_vacancy(emplid: str) -> None:
     echo(style("✓ Done", fg="green"))
 
 
+@cli.command()
+@argument("position_number")
+def position_to_vacancy(position_number: str) -> None:
+    """Convert a position to a vacancy by position number."""
+    # Third party imports
+    import click
+
+    ctx = click.get_current_context()
+    config = load_config(ctx.obj["production"])
+
+    if ctx.obj["production"]:
+        if not confirm(
+            style(f"You are in PRODUCTION mode. Convert position {position_number} to a vacancy?", fg="red", bold=True)
+        ):
+            echo("Aborted.")
+            return
+
+    app = App(ctx.obj["csv"], config)
+    app.position_to_vacancy(position_number)
+    echo(style("✓ Done", fg="green"))
+
+
 def main() -> None:
     """Entry point for CLI."""
     cli(obj={})

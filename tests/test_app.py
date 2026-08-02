@@ -157,6 +157,38 @@ class TestHandleNewStaffMember:
                 mock_prompt.assert_called_once()
 
 
+class TestVacancyDelegation:
+    """Tests for App vacancy-conversion delegation methods."""
+
+    def test_position_to_vacancy_delegates(self) -> None:
+        """App.position_to_vacancy should delegate to StaffAirtable."""
+        # Local imports
+        from main import App
+
+        mock_airtable = Mock()
+        with patch.object(App, "__init__", lambda x, y, z: None):
+            app = App("dummy", None)
+            app._airtable = mock_airtable  # pyright: ignore[reportPrivateUsage]
+
+            app.position_to_vacancy("00012345")
+
+            mock_airtable.position_to_vacancy.assert_called_once_with("00012345")
+
+    def test_employee_to_vacancy_delegates(self) -> None:
+        """App.employee_to_vacancy should delegate to StaffAirtable."""
+        # Local imports
+        from main import App
+
+        mock_airtable = Mock()
+        with patch.object(App, "__init__", lambda x, y, z: None):
+            app = App("dummy", None)
+            app._airtable = mock_airtable  # pyright: ignore[reportPrivateUsage]
+
+            app.employee_to_vacancy("123456789")
+
+            mock_airtable.employee_to_vacancy.assert_called_once_with("123456789")
+
+
 class TestHandleMissingFromCSV:
     """Tests for App._handle_missing_from_csv()"""
 
@@ -180,6 +212,31 @@ class TestHandleMissingFromCSV:
             app._airtable = mock_airtable  # pyright: ignore[reportPrivateUsage]
 
             result = app._handle_missing_from_csv("999999999")  # pyright: ignore[reportPrivateUsage]
+
+            assert result is True  # Should continue
+            mock_airtable.employee_to_vacancy.assert_not_called()
+
+    def test_dean_emplid_skipped(self) -> None:
+        """Current Dean (Jon Stroop) should be skipped by emplid even if the position isn't populated."""
+        # Local imports
+        from main import App
+
+        mock_airtable = Mock()
+        # No Position Number: exercises the emplid safety net independently
+        dean_record = cast(
+            AirtableRecord,
+            {
+                "id": "recStroop",
+                "fields": {"pul:Preferred Name": "Jon Stroop", "University ID": "960067618"},
+            },
+        )
+        mock_airtable.get_record_by_emplid.return_value = dean_record
+
+        with patch.object(App, "__init__", lambda x, y, z: None):
+            app = App("dummy", None)
+            app._airtable = mock_airtable  # pyright: ignore[reportPrivateUsage]
+
+            result = app._handle_missing_from_csv("960067618")  # pyright: ignore[reportPrivateUsage]
 
             assert result is True  # Should continue
             mock_airtable.employee_to_vacancy.assert_not_called()

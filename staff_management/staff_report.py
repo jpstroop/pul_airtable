@@ -81,8 +81,10 @@ class StaffReport:
 
         return filtered
 
-    def _is_library_title(self, title: str) -> bool:
+    def _is_library_title(self, title: Optional[str]) -> bool:
         """Check if a title contains library-related keywords."""
+        if not title:
+            return False
         title_lower = title.lower()
         return any(keyword.lower() in title_lower for keyword in self.LIBRARY_TITLE_KEYWORDS)
 

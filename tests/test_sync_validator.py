@@ -31,9 +31,13 @@ def sync_validator(mock_airtable: Mock, mock_report: Mock) -> SyncValidator:
 class TestSpecialCases:
     """Tests for special case constants"""
 
-    def test_dean_position_constant(self) -> None:
-        """DEAN_POSITION should be set correctly."""
-        assert SyncValidator.DEAN_POSITION == "00003305"
+    def test_dean_positions_constant(self) -> None:
+        """DEAN_POSITIONS should contain the former and current Dean positions."""
+        assert SyncValidator.DEAN_POSITIONS == frozenset({"00003305", "00008047"})
+
+    def test_dean_emplid_constant(self) -> None:
+        """DEAN_EMPLID should be set correctly."""
+        assert SyncValidator.DEAN_EMPLID == "960067618"
 
 
 class TestCheckEmplidsMissingInAirtable:
@@ -155,11 +159,11 @@ class TestCheckPositionNumbersMissingInCSV:
 
         assert set(result) == {"00067890", "00099999"}
 
-    def test_excludes_dean_position(
+    def test_excludes_dean_positions(
         self, sync_validator: SyncValidator, mock_airtable: Mock, mock_report: Mock
     ) -> None:
-        """Should exclude Dean position (00003305) from results."""
-        mock_airtable.all_position_numbers = ["00012345", "00003305"]
+        """Should exclude both former and current Dean positions from results."""
+        mock_airtable.all_position_numbers = ["00012345", "00003305", "00008047"]
         mock_report.all_position_numbers = []
 
         # Mock record for regular position
@@ -169,8 +173,9 @@ class TestCheckPositionNumbersMissingInCSV:
 
         result = sync_validator.check_position_numbers_missing_in_csv()
 
-        # Dean position should be excluded
+        # Both Dean positions should be excluded
         assert "00003305" not in result
+        assert "00008047" not in result
         assert set(result) == {"00012345"}
 
     def test_excludes_vacancies(self, sync_validator: SyncValidator, mock_airtable: Mock, mock_report: Mock) -> None:
@@ -190,6 +195,30 @@ class TestCheckPositionNumbersMissingInCSV:
 
         # Vacancy should be excluded
         assert "00067890" not in result
+        assert result == ["00012345"]
+
+    def test_excludes_dean_by_emplid_safety_net(
+        self, sync_validator: SyncValidator, mock_airtable: Mock, mock_report: Mock
+    ) -> None:
+        """Should exclude the current Dean by emplid even if the position isn't enumerated."""
+        mock_airtable.all_position_numbers = ["00012345", "00099999"]
+        mock_report.all_position_numbers = []
+
+        def mock_get_record(pn: str) -> AirtableRecord:
+            if pn == "00012345":
+                return cast(AirtableRecord, {"id": "rec1", "fields": {"pul:Preferred Name": "Regular Employee"}})
+            else:  # 00099999 held by the current Dean (position not in DEAN_POSITIONS)
+                return cast(
+                    AirtableRecord,
+                    {"id": "recDean", "fields": {"pul:Preferred Name": "Jon Stroop", "University ID": "960067618"}},
+                )
+
+        mock_airtable.get_record_by_position_no.side_effect = mock_get_record
+
+        result = sync_validator.check_position_numbers_missing_in_csv()
+
+        # Current Dean should be excluded via the emplid safety net
+        assert "00099999" not in result
         assert result == ["00012345"]
 
     def test_handles_none_record(self, sync_validator: SyncValidator, mock_airtable: Mock, mock_report: Mock) -> None:
@@ -284,6 +313,21 @@ class TestReportDiscrepancies:
 
         # Should not print anything for Dean position
         sync_validator.report_discrepancies()
+
+    def test_skips_dean_emplid_in_emplid_check(
+        self, sync_validator: SyncValidator, mock_airtable: Mock, mock_report: Mock
+    ) -> None:
+        """Should skip the current Dean (by emplid) when checking emplids missing in CSV."""
+        mock_airtable.all_emplids = ["960067618"]
+        mock_report.all_emplids = []
+        mock_airtable.all_position_numbers = []
+        mock_report.all_position_numbers = []
+        mock_report.rows = []
+
+        # Should skip before ever looking the record up
+        sync_validator.report_discrepancies()
+
+        mock_airtable.get_record_by_emplid.assert_not_called()
 
     def test_skips_when_position_report_row_is_none(
         self, sync_validator: SyncValidator, mock_airtable: Mock, mock_report: Mock

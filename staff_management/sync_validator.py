@@ -1,6 +1,7 @@
 # Standard library imports
 from typing import Any
 from typing import Dict
+from typing import FrozenSet
 from typing import List
 from typing import Tuple
 
@@ -10,6 +11,7 @@ from click import style as click_style
 
 # Local imports
 from staff_management.field_delta import FieldDelta
+from staff_management.field_mapper import MANUALLY_MANAGED_STATUSES
 from staff_management.field_mapper import FieldMapper
 from staff_management.record_matcher import RecordMatcher
 from staff_management.staff_airtable import StaffAirtable
@@ -23,8 +25,20 @@ class SyncValidator:
     Returns lists for testability, with optional CLI reporting.
     """
 
-    # Special case: Dean position to exclude from "missing from CSV" checks
-    DEAN_POSITION: str = "00003305"
+    # Special cases: a Library Dean appears in the CSV only in the
+    # Manager/Supervisor fields (as other staff's supervisor), never as their
+    # own employee row, so the Dean's Airtable record must be excluded from
+    # "missing from CSV" checks. During a leadership transition the outgoing and
+    # incoming Dean can both be present for a week or two while the HR feed
+    # catches up (the outgoing Dean lingers in the supervisor fields), so both
+    # must be handled at once.
+    #
+    #   00003305 - Anne Jarvis (former Dean)
+    #   00008047 - Jon Stroop  (current Dean, emplid 960067618)
+    DEAN_POSITIONS: FrozenSet[str] = frozenset({"00003305", "00008047"})
+    # Emplid safety net for the current Dean, in case the Airtable record is
+    # matched before its Position Number is populated.
+    DEAN_EMPLID: str = "960067618"
 
     _airtable: StaffAirtable
     _report: StaffReport
@@ -74,7 +88,7 @@ class SyncValidator:
     def check_position_numbers_missing_in_csv(self) -> list[str]:
         """Return position numbers in Airtable but not in CSV.
 
-        Excludes vacancies and Deans's position.
+        Excludes vacancies and Dean positions.
 
         Returns:
             List of position numbers that appear in Airtable but not CSV
@@ -86,13 +100,16 @@ class SyncValidator:
         # Filter out vacancies and the Dean's
         result = []
         for pn in missing:
-            if pn == self.DEAN_POSITION:
+            if pn in self.DEAN_POSITIONS:
                 continue
 
             # Check if it's a vacancy
             record = self._airtable.get_record_by_position_no(pn)
             if record:
                 fields = FieldMapper.extract_fields(record)
+                # Safety net: skip the current Dean if matched by emplid
+                if str(fields.get("University ID")) == self.DEAN_EMPLID:
+                    continue
                 name = fields.get("pul:Preferred Name")
                 if name and str(name).startswith("__VACANCY"):
                     continue
@@ -122,8 +139,11 @@ class SyncValidator:
             if name.startswith("__VACANCY"):
                 continue
 
-            # Compare fields
+            # Compare fields, mirroring sync behavior for manually managed statuses
             new_fields = FieldMapper.map_row_to_fields(report_row)
+            existing_status = airtable_fields.get("pul:Search Status")
+            if isinstance(existing_status, str) and existing_status in MANUALLY_MANAGED_STATUSES:
+                new_fields["pul:Search Status"] = existing_status
             delta = FieldDelta.compute_delta(airtable_fields, new_fields)
 
             if delta:
@@ -179,13 +199,16 @@ class SyncValidator:
         # Filter out Dean position before counting/displaying
         missing_in_csv = []
         for emplid in missing_in_csv_raw:
+            # Safety net: skip the current Dean by emplid before looking it up
+            if emplid == self.DEAN_EMPLID:
+                continue
             record = self._airtable.get_record_by_emplid(emplid)
             if record is None:
                 continue
             fields = FieldMapper.extract_fields(record)
             position = str(fields.get("Position Number", ""))
-            # Skip Dean position (special case - should remain in Airtable)
-            if position == self.DEAN_POSITION:
+            # Skip Dean positions (special case - should remain in Airtable)
+            if position in self.DEAN_POSITIONS:
                 continue
             missing_in_csv.append((emplid, record))
 

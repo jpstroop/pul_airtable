@@ -342,6 +342,68 @@ class TestEmployeeToVacancy:
         assert history_data["Supervisor"] == ""
 
 
+class TestPositionToVacancy:
+    """Tests for position_to_vacancy method."""
+
+    def test_converts_position_to_vacancy(
+        self, staff_airtable: StaffAirtable, mock_main_table: Mock, mock_history_table: Mock
+    ) -> None:
+        """Test converting a position (by position number) to a vacancy."""
+        employee_record = cast(
+            AirtableRecord,
+            {
+                "id": "rec123",
+                "fields": {
+                    "pul:Preferred Name": "Alex Smith",
+                    "netid": "asmith",
+                    "Title": "Library Assistant",
+                    "Position Number": "00012345",
+                    "Division": "Collections and Access Services",
+                    "Manager/Supervisor": ["recSuper"],
+                },
+            },
+        )
+        supervisor_record = cast(AirtableRecord, {"id": "recSuper", "fields": {"pul:Preferred Name": "Manager Name"}})
+
+        staff_airtable._next_vacancy_number = 5
+
+        with patch.object(staff_airtable, "get_record_by_position_no", return_value=employee_record):
+            with patch.object(staff_airtable, "get_record_by_at_id", return_value=supervisor_record):
+                staff_airtable.position_to_vacancy("00012345")
+
+        update_call = mock_main_table.update.call_args
+        assert update_call[0][0] == "rec123"
+        vacancy_data = update_call[0][1]
+        assert vacancy_data["pul:Preferred Name"] == "__VACANCY_006__"
+        assert vacancy_data["Last Occupant"] == "Alex Smith"
+
+        history_data = mock_history_table.create.call_args[0][0]
+        assert history_data["Name"] == "Alex Smith"
+        assert history_data["Position Number"] == "00012345"
+
+    def test_raises_when_position_not_found(self, staff_airtable: StaffAirtable) -> None:
+        """Test position_to_vacancy raises when no record matches the position number."""
+        with patch.object(staff_airtable, "get_record_by_position_no", return_value=None):
+            with pytest.raises(Exception, match="No record found for position number"):
+                staff_airtable.position_to_vacancy("00099999")
+
+    def test_raises_when_position_already_vacant(
+        self, staff_airtable: StaffAirtable, mock_main_table: Mock, mock_history_table: Mock
+    ) -> None:
+        """Test position_to_vacancy refuses to re-convert an existing vacancy."""
+        vacancy_record = cast(
+            AirtableRecord,
+            {"id": "recVac", "fields": {"pul:Preferred Name": "__VACANCY_001__", "Position Number": "00012345"}},
+        )
+        with patch.object(staff_airtable, "get_record_by_position_no", return_value=vacancy_record):
+            with pytest.raises(Exception, match="already a vacancy"):
+                staff_airtable.position_to_vacancy("00012345")
+
+        # No records should have been written
+        assert not mock_main_table.update.called
+        assert not mock_history_table.create.called
+
+
 class TestGetManagersEmployees:
     """Tests for get_managers_employees method."""
 

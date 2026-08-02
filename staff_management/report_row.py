@@ -135,20 +135,22 @@ class ReportRow:
         return self._row["Preferred Else Primary Last Name"]
 
     @property
-    def email(self) -> str:
-        return self._row["E-Mail Address - Campus"]
+    def email(self) -> Optional[str]:
+        return self.get("E-Mail Address - Campus")
 
     @property
     def time(self) -> float:
         return float(self._row["FTE"])
 
     @property
-    def start_date(self) -> str:
-        return ReportRow.parse_date(self._row["Hire Date"])
+    def start_date(self) -> Optional[str]:
+        hire_date = self.get("Hire Date")
+        return ReportRow.parse_date(hire_date) if hire_date else None
 
     @property
-    def rehire_date(self) -> str:
-        return ReportRow.parse_date(self._row["Rehire Date"])
+    def rehire_date(self) -> Optional[str]:
+        rehire_date = self.get("Rehire Date")
+        return ReportRow.parse_date(rehire_date) if rehire_date else None
 
     @property
     def address(self) -> Optional[str]:

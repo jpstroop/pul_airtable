@@ -20,6 +20,20 @@ def test_report_row_basic_properties(sample_pula_staff_row: Dict[str, str]) -> N
     assert row["Net ID"] == "asmith"
 
 
+def test_email_blank_returns_none(sample_pula_staff_row: Dict[str, str]) -> None:
+    """A blank campus email should yield None, not raise KeyError."""
+    row_data = dict(sample_pula_staff_row)
+    row_data["E-Mail Address - Campus"] = "   "
+    row = ReportRow(row_data)
+    assert row.email is None
+
+
+def test_email_missing_column_returns_none() -> None:
+    """A row without the email column at all should yield None."""
+    row = ReportRow({"Emplid": "940013732"})
+    assert row.email is None
+
+
 def test_admin_group_pula(sample_pula_staff_row: Dict[str, str]) -> None:
     """Test admin group determination for PULA staff."""
     row = ReportRow(sample_pula_staff_row)
@@ -230,6 +244,18 @@ class TestDateProperties:
         sample_pula_staff_row["Hire Date"] = "2020-01-15"
         row = ReportRow(sample_pula_staff_row)
         assert row.start_date == "2020-01-15"
+
+    def test_start_date_blank_returns_none(self, sample_pula_staff_row: Dict[str, str]) -> None:
+        """A blank Hire Date should yield None, not raise KeyError."""
+        sample_pula_staff_row["Hire Date"] = "   "
+        row = ReportRow(sample_pula_staff_row)
+        assert row.start_date is None
+
+    def test_rehire_date_blank_returns_none(self, sample_pula_staff_row: Dict[str, str]) -> None:
+        """A blank Rehire Date should yield None, not raise KeyError."""
+        sample_pula_staff_row["Rehire Date"] = "   "
+        row = ReportRow(sample_pula_staff_row)
+        assert row.rehire_date is None
 
 
 class TestAddressAndDepartmentProperties:

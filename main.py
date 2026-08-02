@@ -16,6 +16,7 @@ from pyairtable.api.types import Fields
 
 # Local imports
 from staff_management.field_delta import FieldDelta
+from staff_management.field_mapper import MANUALLY_MANAGED_STATUSES
 from staff_management.field_mapper import FieldMapper
 from staff_management.record_matcher import RecordMatcher
 from staff_management.report_row import ReportRow
@@ -29,7 +30,6 @@ from staff_management.sync_prompts import SyncPrompts
 from staff_management.sync_validator import SyncValidator
 
 THROTTLE_INTERVAL: float = 0.2
-MANUALLY_MANAGED_STATUSES: frozenset[str] = frozenset({"Resigned/End date approaching"})
 
 
 class App:
@@ -152,8 +152,11 @@ class App:
         name = str(fields.get("pul:Preferred Name", "Unknown"))
         position = str(fields.get("Position Number", ""))
 
-        # Skip Dean position (special case - should remain in Airtable)
-        if position == "00003305":
+        # Skip Dean records (special cases - should remain in Airtable). A
+        # Library Dean appears in the CSV only as other staff's supervisor,
+        # never as their own employee row. During the transition both the
+        # outgoing Dean (Anne Jarvis) and incoming Dean (Jon Stroop) are kept.
+        if position in SyncValidator.DEAN_POSITIONS or emplid == SyncValidator.DEAN_EMPLID:
             return True
 
         # Prompt user for action
@@ -278,6 +281,9 @@ class App:
 
     def employee_to_vacancy(self, emplid: str) -> None:
         self._airtable.employee_to_vacancy(emplid)
+
+    def position_to_vacancy(self, position_no: str) -> None:
+        self._airtable.position_to_vacancy(position_no)
 
     def run_checks(self) -> None:
         """Run validation checks and report discrepancies between CSV and Airtable."""

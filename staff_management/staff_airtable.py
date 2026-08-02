@@ -214,7 +214,19 @@ class StaffAirtable:
         airtable_record = self.get_record_by_emplid(emplid)
         if airtable_record is None:
             raise Exception(f"No record found for emplid {emplid}")
+        self._record_to_vacancy(airtable_record)
+
+    def position_to_vacancy(self, position_no: str) -> None:
+        airtable_record = self.get_record_by_position_no(position_no)
+        if airtable_record is None:
+            raise Exception(f"No record found for position number {position_no}")
+        self._record_to_vacancy(airtable_record)
+
+    def _record_to_vacancy(self, airtable_record: AirtableRecord) -> None:
         airtable_fields = airtable_record["fields"]
+        current_name = str(airtable_fields.get("pul:Preferred Name", ""))
+        if current_name.startswith("__VACANCY"):
+            raise Exception(f"Record {current_name} is already a vacancy")
         vacancy_data = cast(
             Fields,
             {
